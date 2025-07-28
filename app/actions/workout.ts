@@ -1,7 +1,7 @@
 'use server'
 
 import { prisma, DEFAULT_USER_ID } from '@/lib/db'
-import { WorkoutType } from '@prisma/client'
+import { WorkoutType, CardioMode } from '@prisma/client'
 
 export async function createWorkout(type: WorkoutType, date: Date) {
   // Create date at noon UTC to avoid timezone issues
@@ -105,7 +105,7 @@ export async function logCardio(
   durationMinutes: number, 
   distanceKm?: number, 
   incline?: number,
-  mode?: string,
+  mode?: CardioMode,
   avgHeartRate?: number,
   notes?: string
 ) {
