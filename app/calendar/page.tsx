@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getWorkoutsForMonth, deleteWorkout } from '@/app/actions/workout'
+import { getWorkoutsForMonth, deleteWorkout, createWorkout } from '@/app/actions/workout'
 import { WorkoutType } from '@prisma/client'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths } from 'date-fns'
-import { ChevronLeft, ChevronRight, Calendar, Home, Trash2, Edit3, Plus, Dumbbell } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar, Home, Trash2, Edit3, Plus, Dumbbell, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { formatWorkoutDate } from '@/lib/date-utils'
@@ -13,7 +13,7 @@ export default function CalendarPage() {
   const [currentMonth, setCurrentMonth] = useState(() => new Date())
   const [workouts, setWorkouts] = useState<any[]>([])
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
-  const [selectedWorkout, setSelectedWorkout] = useState<any>(null)
+  const [selectedWorkouts, setSelectedWorkouts] = useState<any[]>([])
   const [deleting, setDeleting] = useState(false)
   const [mounted, setMounted] = useState(false)
   const router = useRouter()
@@ -43,8 +43,8 @@ export default function CalendarPage() {
     end: endOfMonth(currentMonth),
   })
   
-  const getWorkoutForDay = (date: Date) => {
-    return workouts.find(w => {
+  const getWorkoutsForDay = (date: Date) => {
+    return workouts.filter(w => {
       const workoutDate = new Date(w.date)
       return workoutDate.getUTCFullYear() === date.getFullYear() &&
              workoutDate.getUTCMonth() === date.getMonth() &&
@@ -70,14 +70,13 @@ export default function CalendarPage() {
     setDeleting(true)
     await deleteWorkout(workoutId)
     await loadWorkouts()
-    setSelectedWorkout(null)
     setDeleting(false)
   }
   
   const handleDateClick = (date: Date) => {
-    const workout = getWorkoutForDay(date)
+    const dayWorkouts = getWorkoutsForDay(date)
     setSelectedDate(date)
-    setSelectedWorkout(workout)
+    setSelectedWorkouts(dayWorkouts)
   }
   
   return (
@@ -140,7 +139,7 @@ export default function CalendarPage() {
           
           <div className="grid grid-cols-7 gap-2">
             {days.map((day, index) => {
-              const workout = getWorkoutForDay(day)
+              const dayWorkouts = getWorkoutsForDay(day)
               const isToday = isSameDay(day, new Date())
               const isSelected = selectedDate && isSameDay(day, selectedDate)
               
@@ -158,10 +157,19 @@ export default function CalendarPage() {
                   <div className="text-sm font-semibold mb-1">
                     {format(day, 'd')}
                   </div>
-                  {workout && (
+                  {dayWorkouts.length > 0 && (
                     <div className="absolute bottom-2 left-2 right-2">
-                      <div className={`h-2 w-full rounded-full ${getWorkoutColor(workout.type)}`} />
-                      <p className="text-xs text-gray-400 mt-1 truncate">{workout.type}</p>
+                      <div className="flex gap-1 mb-1">
+                        {dayWorkouts.slice(0, 3).map((workout, idx) => (
+                          <div
+                            key={workout.id}
+                            className={`h-1.5 flex-1 rounded-full ${getWorkoutColor(workout.type)}`}
+                          />
+                        ))}
+                      </div>
+                      <p className="text-xs text-gray-400 text-center">
+                        {dayWorkouts.length} workout{dayWorkouts.length !== 1 ? 's' : ''}
+                      </p>
                     </div>
                   )}
                 </button>
@@ -188,102 +196,83 @@ export default function CalendarPage() {
             </div>
             
             <div className="p-6">
-              {selectedWorkout ? (
-                <div>
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-4 h-4 rounded-full ${getWorkoutColor(selectedWorkout.type)}`} />
-                      <h4 className="text-xl font-semibold capitalize">
-                        {selectedWorkout.type.replace('_', ' ')} Workout
-                      </h4>
-                    </div>
-                    <div className="flex gap-2">
-                      <Link
-                        href={`/workout/${selectedWorkout.id}/edit`}
-                        className="p-2 text-blue-400 hover:bg-blue-500/20 rounded-lg transition-colors"
-                      >
-                        <Edit3 className="w-5 h-5" />
-                      </Link>
-                      <button
-                        onClick={() => handleDeleteWorkout(selectedWorkout.id)}
-                        disabled={deleting}
-                        className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors disabled:opacity-50"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
+              {selectedWorkouts.length > 0 ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-xl font-semibold">
+                      {selectedWorkouts.length} Workout{selectedWorkouts.length !== 1 ? 's' : ''} Today
+                    </h4>
+                    <Link
+                      href={`/workout/new?date=${selectedDate.toISOString()}`}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Workout
+                    </Link>
                   </div>
                   
-                  {selectedWorkout.exercises && selectedWorkout.exercises.length > 0 && (
-                    <div className="mb-6">
-                      <h5 className="font-semibold mb-3">Exercises Performed</h5>
-                      <div className="space-y-3">
-                        {selectedWorkout.exercises.map((we: any) => (
-                          <div key={we.id} className="bg-gray-900 rounded-xl p-4">
-                            <h6 className="font-medium mb-2">{we.exercise.name}</h6>
-                            {we.sets.length > 0 ? (
-                              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                {we.sets.map((set: any, index: number) => (
-                                  <div key={set.id} className="text-sm bg-gray-800 rounded-lg p-2">
-                                    <span className="font-medium">Set {index + 1}:</span>
-                                    <span className="text-gray-400"> {set.weight}kg × {set.reps}</span>
-                                    {set.rpe && <span className="text-gray-500"> @{set.rpe}</span>}
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <p className="text-sm text-gray-500">No sets recorded</p>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {selectedWorkout.cardio && (
-                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 mb-6">
-                      <h5 className="font-semibold mb-2">Cardio Session</h5>
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <span className="text-gray-400">Duration:</span>
-                          <p className="font-medium">{selectedWorkout.cardio.durationMinutes} min</p>
+                  {selectedWorkouts.map((workout) => (
+                    <div key={workout.id} className="bg-gray-900 rounded-xl p-4 border border-gray-700">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-4 h-4 rounded-full ${getWorkoutColor(workout.type)}`} />
+                          <h5 className="font-semibold capitalize">
+                            {workout.type.replace('_', ' ')} Workout
+                          </h5>
                         </div>
-                        {selectedWorkout.cardio.distanceKm && (
-                          <div>
-                            <span className="text-gray-400">Distance:</span>
-                            <p className="font-medium">{selectedWorkout.cardio.distanceKm} km</p>
-                          </div>
-                        )}
-                        {selectedWorkout.cardio.incline && (
-                          <div>
-                            <span className="text-gray-400">Incline:</span>
-                            <p className="font-medium">{selectedWorkout.cardio.incline}%</p>
-                          </div>
-                        )}
-                        {selectedWorkout.cardio.avgHeartRate && (
-                          <div>
-                            <span className="text-gray-400">Avg HR:</span>
-                            <p className="font-medium">{selectedWorkout.cardio.avgHeartRate} bpm</p>
-                          </div>
-                        )}
+                        <div className="flex gap-2">
+                          <Link
+                            href={`/workout/${workout.id}/edit`}
+                            className="p-2 text-blue-400 hover:bg-blue-500/20 rounded-lg transition-colors"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </Link>
+                          <button
+                            onClick={() => handleDeleteWorkout(workout.id)}
+                            disabled={deleting}
+                            className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors disabled:opacity-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
+                      
+                      {workout.exercises && workout.exercises.length > 0 && (
+                        <div className="mb-3">
+                          <p className="text-sm text-gray-400 mb-2">
+                            {workout.exercises.length} exercises • 
+                            {workout.exercises.reduce((acc: number, ex: any) => acc + ex.sets.length, 0)} sets
+                          </p>
+                          <div className="text-sm text-gray-500">
+                            {workout.exercises.slice(0, 3).map((we: any) => we.exercise.name).join(', ')}
+                            {workout.exercises.length > 3 && ` +${workout.exercises.length - 3} more`}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {workout.cardio && (
+                        <div className="text-sm text-gray-400">
+                          Cardio: {workout.cardio.durationMinutes}min
+                          {workout.cardio.distanceKm && ` • ${workout.cardio.distanceKm}km`}
+                        </div>
+                      )}
+                      
+                      <Link
+                        href={`/workout/${workout.id}/edit`}
+                        className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors"
+                      >
+                        Continue
+                        <ArrowRight className="w-4 h-4" />
+                      </Link>
                     </div>
-                  )}
-                  
-                  <Link
-                    href={`/workout/${selectedWorkout.id}/edit`}
-                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors font-medium"
-                  >
-                    <Edit3 className="w-5 h-5" />
-                    Edit Full Workout
-                  </Link>
+                  ))}
                 </div>
               ) : (
                 <div className="text-center py-8">
                   <div className="w-20 h-20 bg-gray-900 rounded-full flex items-center justify-center mx-auto mb-4">
                     <Dumbbell className="w-10 h-10 text-gray-600" />
                   </div>
-                  <p className="text-gray-400 mb-6">No workout recorded for this date.</p>
+                  <p className="text-gray-400 mb-6">No workouts recorded for this date.</p>
                   <Link
                     href={`/workout/new?date=${selectedDate.toISOString()}`}
                     className="inline-flex items-center gap-2 px-6 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors font-medium"

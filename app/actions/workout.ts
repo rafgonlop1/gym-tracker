@@ -7,12 +7,12 @@ export async function createWorkout(type: WorkoutType, date: Date) {
   // Create date at noon UTC to avoid timezone issues
   const dateOnly = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0))
   
-  const existing = await prisma.workout.findUnique({
+  // Check if there's already a workout of the same type on the same day
+  const existing = await prisma.workout.findFirst({
     where: {
-      userId_date: {
-        userId: DEFAULT_USER_ID,
-        date: dateOnly,
-      },
+      userId: DEFAULT_USER_ID,
+      date: dateOnly,
+      type: type,
     },
   })
   
@@ -29,17 +29,15 @@ export async function createWorkout(type: WorkoutType, date: Date) {
   })
 }
 
-export async function getTodayWorkout() {
+export async function getTodayWorkouts() {
   const today = new Date()
   // Create date at noon UTC to avoid timezone issues
   const dateOnly = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate(), 12, 0, 0, 0))
   
-  return await prisma.workout.findUnique({
+  return await prisma.workout.findMany({
     where: {
-      userId_date: {
-        userId: DEFAULT_USER_ID,
-        date: dateOnly,
-      },
+      userId: DEFAULT_USER_ID,
+      date: dateOnly,
     },
     include: {
       exercises: {
@@ -54,7 +52,14 @@ export async function getTodayWorkout() {
       cardio: true,
       cmjTests: true,
     },
+    orderBy: { createdAt: 'desc' },
   })
+}
+
+// Mantener para compatibilidad, pero devuelve el primer workout del día
+export async function getTodayWorkout() {
+  const workouts = await getTodayWorkouts()
+  return workouts[0] || null
 }
 
 export async function addExerciseToWorkout(workoutId: string, exerciseId: string) {
@@ -77,6 +82,61 @@ export async function addExerciseToWorkout(workoutId: string, exerciseId: string
 export async function removeExerciseFromWorkout(workoutExerciseId: string) {
   return await prisma.workoutExercise.delete({
     where: { id: workoutExerciseId },
+  })
+}
+
+export async function updateExerciseOrder(workoutId: string, exerciseId: string, newOrder: number) {
+  // Get all exercises for this workout
+  const exercises = await prisma.workoutExercise.findMany({
+    where: { workoutId },
+    orderBy: { order: 'asc' },
+  })
+  
+  // Find the exercise being moved
+  const movingExercise = exercises.find(ex => ex.id === exerciseId)
+  if (!movingExercise) return
+  
+  const oldOrder = movingExercise.order
+  
+  // Update orders
+  if (oldOrder < newOrder) {
+    // Moving down - decrease order of exercises in between
+    await prisma.workoutExercise.updateMany({
+      where: {
+        workoutId,
+        order: {
+          gt: oldOrder,
+          lte: newOrder,
+        },
+      },
+      data: {
+        order: {
+          decrement: 1,
+        },
+      },
+    })
+  } else if (oldOrder > newOrder) {
+    // Moving up - increase order of exercises in between
+    await prisma.workoutExercise.updateMany({
+      where: {
+        workoutId,
+        order: {
+          gte: newOrder,
+          lt: oldOrder,
+        },
+      },
+      data: {
+        order: {
+          increment: 1,
+        },
+      },
+    })
+  }
+  
+  // Update the moved exercise
+  await prisma.workoutExercise.update({
+    where: { id: exerciseId },
+    data: { order: newOrder },
   })
 }
 

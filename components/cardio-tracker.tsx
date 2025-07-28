@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { logCardio } from '@/app/actions/workout'
 import { WorkoutType, CardioMode } from '@prisma/client'
-import { Timer, Route, TrendingUp, Activity } from 'lucide-react'
+import { Timer, Route, TrendingUp, Activity, Heart, Save } from 'lucide-react'
 
 interface CardioTrackerProps {
   type: WorkoutType
@@ -46,14 +46,17 @@ export function CardioTracker({ type, existingSession, onUpdate }: CardioTracker
   }
   
   return (
-    <div className="bg-white p-6 rounded-lg border">
-      <h2 className="text-xl font-semibold mb-4">Log Cardio Session</h2>
+    <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+      <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+        <Heart className="w-5 h-5 text-red-400" />
+        Log Cardio Session
+      </h2>
       
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
-              <Timer className="w-4 h-4" />
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-1">
+              <Timer className="w-4 h-4 text-blue-400" />
               Duration (minutes)
             </label>
             <input
@@ -61,18 +64,18 @@ export function CardioTracker({ type, existingSession, onUpdate }: CardioTracker
               value={duration}
               onChange={(e) => setDuration(e.target.value)}
               placeholder="30"
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder-gray-500"
             />
           </div>
           
           <div>
-            <label className="text-sm font-medium text-gray-700 mb-1 block">
+            <label className="text-sm font-medium text-gray-300 mb-1 block">
               Mode
             </label>
             <select
               value={mode}
               onChange={(e) => setMode(e.target.value as CardioMode)}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
             >
               <option value={CardioMode.TREADMILL}>Treadmill</option>
               <option value={CardioMode.BIKE}>Bike</option>
@@ -85,8 +88,8 @@ export function CardioTracker({ type, existingSession, onUpdate }: CardioTracker
         
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
-              <Route className="w-4 h-4" />
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-1">
+              <Route className="w-4 h-4 text-green-400" />
               Distance (km)
             </label>
             <input
@@ -95,13 +98,13 @@ export function CardioTracker({ type, existingSession, onUpdate }: CardioTracker
               value={distance}
               onChange={(e) => setDistance(e.target.value)}
               placeholder="5.0"
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder-gray-500"
             />
           </div>
           
           <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
-              <TrendingUp className="w-4 h-4" />
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-1">
+              <TrendingUp className="w-4 h-4 text-orange-400" />
               Incline (%)
             </label>
             <input
@@ -110,14 +113,14 @@ export function CardioTracker({ type, existingSession, onUpdate }: CardioTracker
               value={incline}
               onChange={(e) => setIncline(e.target.value)}
               placeholder="1.0"
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder-gray-500"
             />
           </div>
         </div>
         
         <div>
-          <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
-            <Activity className="w-4 h-4" />
+          <label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-1">
+            <Activity className="w-4 h-4 text-red-400" />
             Average Heart Rate (bpm)
           </label>
           <input
@@ -125,19 +128,19 @@ export function CardioTracker({ type, existingSession, onUpdate }: CardioTracker
             value={avgHeartRate}
             onChange={(e) => setAvgHeartRate(e.target.value)}
             placeholder="150"
-            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder-gray-500"
           />
         </div>
         
         <div>
-          <label className="text-sm font-medium text-gray-700 mb-1 block">
+          <label className="text-sm font-medium text-gray-300 mb-1 block">
             Notes
           </label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="How did it feel? Any observations..."
-            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder-gray-500"
             rows={3}
           />
         </div>
@@ -145,8 +148,9 @@ export function CardioTracker({ type, existingSession, onUpdate }: CardioTracker
         <button
           onClick={handleSave}
           disabled={!duration || isSaving}
-          className="w-full py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
+          className="w-full py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 disabled:opacity-50 font-medium flex items-center justify-center gap-2 transition-colors"
         >
+          <Save className="w-5 h-5" />
           {isSaving ? 'Saving...' : existingSession ? 'Update Session' : 'Save Session'}
         </button>
       </div>

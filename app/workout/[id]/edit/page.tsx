@@ -9,6 +9,7 @@ import { ExerciseSearch } from '@/components/exercise-search'
 import { SetTracker } from '@/components/set-tracker'
 import { CardioTracker } from '@/components/cardio-tracker'
 import { CMJTracker } from '@/components/cmj-tracker'
+import { SortableExerciseList } from '@/components/sortable-exercise-list'
 import { format } from 'date-fns'
 import { Calendar, FileText, X, ChevronLeft, CheckCircle, Plus, Sparkles, ArrowLeft, Loader2 } from 'lucide-react'
 import Link from 'next/link'
@@ -189,27 +190,13 @@ export default function EditWorkoutPage() {
                 </div>
               )}
               
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {workout.exercises?.map((we: any, index: number) => (
-                  <div key={we.id} className="relative group">
-                    <div className="absolute -top-3 -right-3 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                      <button
-                        onClick={() => handleRemoveExercise(we.id)}
-                        className="p-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors backdrop-blur-sm"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                    <SetTracker
-                      workoutExerciseId={we.id}
-                      exerciseId={we.exercise.id}
-                      exerciseName={we.exercise.name}
-                      sets={we.sets}
-                      onUpdate={loadWorkout}
-                    />
-                  </div>
-                ))}
-              </div>
+              {workout.exercises && workout.exercises.length > 0 && (
+                <SortableExerciseList
+                  exercises={workout.exercises}
+                  onRemove={handleRemoveExercise}
+                  onUpdate={loadWorkout}
+                />
+              )}
             </>
           )}
         </div>

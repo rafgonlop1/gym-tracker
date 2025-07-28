@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { WorkoutType } from '@prisma/client'
-import { getTodayWorkout, deleteWorkout, createWorkout, getWorkoutsForMonth } from '@/app/actions/workout'
+import { getTodayWorkouts, deleteWorkout, createWorkout, getWorkoutsForMonth } from '@/app/actions/workout'
 import { getTemplatesByType } from '@/app/actions/template'
 import { format, startOfMonth, endOfMonth, subDays, isSameDay } from 'date-fns'
 import { 
@@ -20,17 +20,18 @@ import {
   Timer,
   ArrowRight,
   Sparkles,
-  Flame
+  Flame,
+  X
 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
 export default function Home() {
-  const [todayWorkout, setTodayWorkout] = useState<any>(null)
+  const [todayWorkouts, setTodayWorkouts] = useState<any[]>([])
   const [recentWorkouts, setRecentWorkouts] = useState<any[]>([])
   const [templates, setTemplates] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [quickStartType, setQuickStartType] = useState<WorkoutType | null>(null)
+  const [quickStartType, setQuickStartType] = useState<WorkoutType | 'show' | null>(null)
   const [isCreating, setIsCreating] = useState(false)
   const [mounted, setMounted] = useState(false)
   const router = useRouter()
@@ -44,8 +45,8 @@ export default function Home() {
     setLoading(true)
     
     // Load all data in parallel
-    const [workout, workouts, allTemplates] = await Promise.all([
-      getTodayWorkout(),
+    const [workouts, recentWorkouts, allTemplates] = await Promise.all([
+      getTodayWorkouts(),
       getWorkoutsForMonth(subDays(new Date(), 30), new Date()),
       Promise.all([
         getTemplatesByType(WorkoutType.PUSH),
@@ -54,8 +55,8 @@ export default function Home() {
       ]).then(results => results.flat())
     ])
     
-    setTodayWorkout(workout)
-    setRecentWorkouts(workouts)
+    setTodayWorkouts(workouts)
+    setRecentWorkouts(recentWorkouts)
     setTemplates(allTemplates.slice(0, 4)) // Show only 4 templates
     setLoading(false)
   }
@@ -66,10 +67,16 @@ export default function Home() {
     router.push(`/workout/${workout.id}/edit`)
   }
   
-  const handleDeleteTodayWorkout = async () => {
-    if (!todayWorkout || !confirm('Delete today\'s workout?')) return
-    await deleteWorkout(todayWorkout.id)
-    setTodayWorkout(null)
+  // Get available workout types (ones not already created today)
+  const getAvailableWorkoutTypes = () => {
+    const createdTypes = todayWorkouts.map(w => w.type)
+    return Object.values(WorkoutType).filter(type => !createdTypes.includes(type))
+  }
+  
+  const handleDeleteWorkout = async (workoutId: string) => {
+    if (!confirm('Delete this workout?')) return
+    await deleteWorkout(workoutId)
+    await loadDashboardData()
   }
   
   const getWorkoutTypeIcon = (type: WorkoutType) => {
@@ -198,66 +205,101 @@ export default function Home() {
         {/* Bento Grid Layout */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           
-          {/* Today's Workout - Large Card */}
+          {/* Today's Workouts - Large Card */}
           <div className="md:col-span-2 lg:col-span-2">
-            {todayWorkout ? (
-              <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl p-6 h-full border border-gray-700 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-full blur-3xl"></div>
-                
-                <div className="relative">
-                  <div className="flex items-start justify-between mb-4">
+            {todayWorkouts.length > 0 ? (
+              <div className="space-y-4">
+                <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl p-6 border border-gray-700">
+                  <div className="flex items-center justify-between mb-4">
                     <div>
-                      <p className="text-gray-400 text-sm mb-1">Active Session</p>
-                      <h2 className="text-2xl font-bold flex items-center gap-2">
-                        <span>{getWorkoutTypeIcon(todayWorkout.type)}</span>
-                        {todayWorkout.type} Day
-                      </h2>
+                      <p className="text-gray-400 text-sm">Active Sessions Today</p>
+                      <h2 className="text-2xl font-bold">{todayWorkouts.length} Workout{todayWorkouts.length !== 1 ? 's' : ''}</h2>
                     </div>
                     <button
-                      onClick={handleDeleteTodayWorkout}
-                      className="p-2 hover:bg-gray-700 rounded-lg transition-colors text-gray-400 hover:text-red-400"
+                      onClick={() => setQuickStartType('show')}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Plus className="w-4 h-4" />
+                      <span className="hidden sm:inline">Add Workout</span>
                     </button>
                   </div>
                   
-                  <div className="grid grid-cols-3 gap-4 mb-6">
-                    <div>
-                      <p className="text-3xl font-bold">{todayWorkout.exercises?.length || 0}</p>
-                      <p className="text-gray-400 text-sm">Exercises</p>
-                    </div>
-                    <div>
-                      <p className="text-3xl font-bold">
-                        {todayWorkout.exercises?.reduce((acc: number, ex: any) => acc + ex.sets.length, 0) || 0}
-                      </p>
-                      <p className="text-gray-400 text-sm">Sets</p>
-                    </div>
-                    <div>
-                      <p className="text-3xl font-bold">
-                        {Math.round(todayWorkout.exercises?.reduce((acc: number, ex: any) => {
-                          return acc + ex.sets.reduce((setAcc: number, set: any) => setAcc + (set.weight * set.reps), 0)
-                        }, 0) || 0)}
-                      </p>
-                      <p className="text-gray-400 text-sm">Volume (kg)</p>
-                    </div>
+                  <div className="space-y-3 max-h-80 overflow-y-auto">
+                    {todayWorkouts.map((workout) => (
+                      <div key={workout.id} className="bg-gray-900 rounded-xl p-4 border border-gray-700">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <span className="text-2xl">{getWorkoutTypeIcon(workout.type)}</span>
+                            <div>
+                              <h3 className="font-semibold">{workout.type} Workout</h3>
+                              <p className="text-sm text-gray-400">
+                                {workout.exercises?.length || 0} exercises • 
+                                {workout.exercises?.reduce((acc: number, ex: any) => acc + ex.sets.length, 0) || 0} sets
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleDeleteWorkout(workout.id)}
+                            className="p-2 hover:bg-gray-800 rounded-lg transition-colors text-gray-400 hover:text-red-400"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                        
+                        <Link
+                          href={`/workout/${workout.id}/edit`}
+                          className="w-full bg-gray-800 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 group"
+                        >
+                          Continue
+                          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                        </Link>
+                      </div>
+                    ))}
                   </div>
-                  
-                  <Link
-                    href={`/workout/${todayWorkout.id}/edit`}
-                    className="w-full bg-white text-black font-medium py-3 rounded-xl hover:bg-gray-100 transition-colors flex items-center justify-center gap-2 group"
-                  >
-                    Continue Workout
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                  </Link>
                 </div>
+                
+                {/* Workout Type Selector Modal */}
+                {quickStartType === 'show' && (
+                  <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold">Add New Workout</h3>
+                      <button
+                        onClick={() => setQuickStartType(null)}
+                        className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {getAvailableWorkoutTypes().map((type) => (
+                        <button
+                          key={type}
+                          onClick={() => handleQuickStart(type)}
+                          disabled={isCreating}
+                          className={`p-4 rounded-xl bg-gradient-to-br ${getWorkoutTypeColor(type)} hover:opacity-90 transition-all transform hover:scale-105 disabled:opacity-50`}
+                        >
+                          <p className="text-2xl mb-1">{getWorkoutTypeIcon(type)}</p>
+                          <p className="font-medium text-sm">{type.replace('_', ' ')}</p>
+                        </button>
+                      ))}
+                    </div>
+                    
+                    {getAvailableWorkoutTypes().length === 0 && (
+                      <p className="text-center text-gray-400 py-8">
+                        You've already created all workout types for today! 🎉
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl p-6 h-full border border-gray-700">
                 <h2 className="text-xl font-bold mb-2">Start Today's Workout</h2>
                 <p className="text-gray-400 mb-6">Choose a workout type to begin</p>
                 
-                <div className="grid grid-cols-2 gap-3">
-                  {Object.values(WorkoutType).slice(0, 4).map((type) => (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {Object.values(WorkoutType).map((type) => (
                     <button
                       key={type}
                       onClick={() => handleQuickStart(type)}
@@ -265,7 +307,7 @@ export default function Home() {
                       className={`p-4 rounded-xl bg-gradient-to-br ${getWorkoutTypeColor(type)} hover:opacity-90 transition-all transform hover:scale-105 disabled:opacity-50`}
                     >
                       <p className="text-2xl mb-1">{getWorkoutTypeIcon(type)}</p>
-                      <p className="font-medium">{type}</p>
+                      <p className="font-medium text-sm">{type.replace('_', ' ')}</p>
                     </button>
                   ))}
                 </div>
