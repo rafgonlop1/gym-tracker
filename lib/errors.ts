@@ -23,7 +23,7 @@ export class NotFoundError extends AppError {
 
 export class DatabaseError extends AppError {
   constructor(message: string) {
-    super(message, 'DATABASE_ERROR', 500)
+    super(message, 'DATABASE_ERROR', 500) 
   }
 }
 
