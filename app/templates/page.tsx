@@ -13,10 +13,14 @@ export default function TemplatesPage() {
   const [exercises, setExercises] = useState<Exercise[]>([])
   const [isCreating, setIsCreating] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string
+    type: WorkoutType
+    exercises: { exerciseId: string; order: number }[]
+  }>({
     name: '',
     type: WorkoutType.PULL,
-    exercises: [] as { exerciseId: string; order: number }[],
+    exercises: [],
   })
   
   useEffect(() => {
@@ -248,11 +252,13 @@ export default function TemplatesPage() {
         <div className="space-y-4">
           {templates.map((template) => {
             const getWorkoutTypeColor = (type: WorkoutType) => {
-              const colors = {
+              const colors: Record<WorkoutType, string> = {
                 [WorkoutType.PUSH]: 'bg-blue-500/10 text-blue-400',
                 [WorkoutType.PULL]: 'bg-green-500/10 text-green-400',
                 [WorkoutType.LEGS]: 'bg-red-500/10 text-red-400',
                 [WorkoutType.PLYOMETRICS]: 'bg-purple-500/10 text-purple-400',
+                [WorkoutType.CARDIO_Z2]: 'bg-yellow-500/10 text-yellow-400',
+                [WorkoutType.HIIT]: 'bg-orange-500/10 text-orange-400',
               }
               return colors[type] || 'bg-gray-500/10 text-gray-400'
             }

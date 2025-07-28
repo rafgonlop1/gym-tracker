@@ -1,6 +1,25 @@
 import { format } from 'date-fns'
 
 /**
+ * Create a UTC date at noon to avoid timezone issues
+ */
+export function createUTCDateAtNoon(date: Date): Date {
+  return new Date(Date.UTC(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    12, 0, 0, 0
+  ))
+}
+
+/**
+ * Get today's date at UTC noon
+ */
+export function getTodayUTC(): Date {
+  return createUTCDateAtNoon(new Date())
+}
+
+/**
  * Formats a date from the database (stored in UTC) to display in local time
  */
 export function formatWorkoutDate(date: Date | string): string {
@@ -38,4 +57,22 @@ export function isSameWorkoutDay(date1: Date | string, date2: Date): boolean {
   return d1.getUTCFullYear() === date2.getFullYear() &&
          d1.getUTCMonth() === date2.getMonth() &&
          d1.getUTCDate() === date2.getDate()
+}
+
+/**
+ * Get week range for calendar views
+ */
+export function getWeekRange(date: Date): { start: Date; end: Date } {
+  const start = new Date(date)
+  const day = start.getDay()
+  const diff = start.getDate() - day + (day === 0 ? -6 : 1) // Adjust for Sunday
+  
+  start.setDate(diff)
+  start.setHours(0, 0, 0, 0)
+  
+  const end = new Date(start)
+  end.setDate(start.getDate() + 6)
+  end.setHours(23, 59, 59, 999)
+  
+  return { start, end }
 }

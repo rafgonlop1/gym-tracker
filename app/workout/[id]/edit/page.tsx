@@ -52,7 +52,7 @@ export default function EditWorkoutPage() {
   }
   
   const isCardio = (type: WorkoutType) => {
-    return [WorkoutType.CARDIO_Z2, WorkoutType.HIIT].includes(type)
+    return type === WorkoutType.CARDIO_Z2 || type === WorkoutType.HIIT
   }
   
   const handleAddExercise = async (exercise: any) => {

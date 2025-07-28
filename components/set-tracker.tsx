@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { addSet, updateSet, deleteSet, getLastWorkoutSets } from '@/app/actions/workout'
-import { Plus, Trash2, Check, X, TrendingUp, Weight, Hash } from 'lucide-react'
+import { Plus, Trash2, Check, X, TrendingUp, Weight } from 'lucide-react'
+import { VALIDATION } from '@/lib/constants'
 import type { Set } from '@prisma/client'
+import type { SetFormData } from '@/types'
 
 interface SetTrackerProps {
   workoutExerciseId: string
@@ -22,7 +24,12 @@ export function SetTracker({
 }: SetTrackerProps) {
   const [isAdding, setIsAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [formData, setFormData] = useState({ reps: '', weight: '', rpe: '', notes: '' })
+  const [formData, setFormData] = useState({ 
+    reps: '', 
+    weight: '', 
+    rpe: '', 
+    notes: '' 
+  })
   const [lastSets, setLastSets] = useState<Set[]>([])
   
   useEffect(() => {
@@ -30,42 +37,68 @@ export function SetTracker({
   }, [exerciseId])
   
   const handleAdd = async () => {
-    if (!formData.reps || !formData.weight) return
-    
-    await addSet(
-      workoutExerciseId,
-      parseInt(formData.reps),
-      parseFloat(formData.weight),
-      formData.rpe ? parseInt(formData.rpe) : undefined,
-      formData.notes || undefined
-    )
-    
-    setFormData({ reps: '', weight: '', rpe: '', notes: '' })
-    setIsAdding(false)
-    onUpdate()
+    try {
+      const reps = parseInt(formData.reps)
+      const weight = parseFloat(formData.weight)
+      const rpe = formData.rpe ? parseInt(formData.rpe) : undefined
+      
+      if (isNaN(reps) || isNaN(weight)) return
+      if (reps < VALIDATION.MIN_REPS || reps > VALIDATION.MAX_REPS) return
+      if (weight < VALIDATION.MIN_WEIGHT || weight > VALIDATION.MAX_WEIGHT) return
+      if (rpe !== undefined && (rpe < VALIDATION.MIN_RPE || rpe > VALIDATION.MAX_RPE)) return
+      
+      await addSet(
+        workoutExerciseId,
+        reps,
+        weight,
+        rpe,
+        formData.notes || undefined
+      )
+      
+      setFormData({ reps: '', weight: '', rpe: '', notes: '' })
+      setIsAdding(false)
+      onUpdate()
+    } catch (error) {
+      console.error('Failed to add set:', error)
+    }
   }
   
   const handleUpdate = async (setId: string) => {
-    if (!formData.reps || !formData.weight) return
-    
-    await updateSet(
-      setId,
-      parseInt(formData.reps),
-      parseFloat(formData.weight),
-      formData.rpe ? parseInt(formData.rpe) : undefined,
-      formData.notes || undefined
-    )
-    
-    setEditingId(null)
-    onUpdate()
+    try {
+      const reps = parseInt(formData.reps)
+      const weight = parseFloat(formData.weight)
+      const rpe = formData.rpe ? parseInt(formData.rpe) : undefined
+      
+      if (isNaN(reps) || isNaN(weight)) return
+      if (reps < VALIDATION.MIN_REPS || reps > VALIDATION.MAX_REPS) return
+      if (weight < VALIDATION.MIN_WEIGHT || weight > VALIDATION.MAX_WEIGHT) return
+      if (rpe !== undefined && (rpe < VALIDATION.MIN_RPE || rpe > VALIDATION.MAX_RPE)) return
+      
+      await updateSet(
+        setId,
+        reps,
+        weight,
+        rpe,
+        formData.notes || undefined
+      )
+      
+      setEditingId(null)
+      onUpdate()
+    } catch (error) {
+      console.error('Failed to update set:', error)
+    }
   }
   
   const handleDelete = async (setId: string) => {
-    await deleteSet(setId)
-    onUpdate()
+    try {
+      await deleteSet(setId)
+      onUpdate()
+    } catch (error) {
+      console.error('Failed to delete set:', error)
+    }
   }
   
-  const prefillLastSet = (index: number) => {
+  const prefillLastSet = useCallback((index: number) => {
     if (lastSets[index]) {
       setFormData({
         reps: lastSets[index].reps.toString(),
@@ -74,18 +107,15 @@ export function SetTracker({
         notes: '',
       })
     }
-  }
+  }, [lastSets])
   
-  const getBestSet = () => {
-    if (sets.length === 0) return null
-    return sets.reduce((best, current) => {
-      const currentVolume = current.weight * current.reps
-      const bestVolume = best.weight * best.reps
-      return currentVolume > bestVolume ? current : best
-    })
-  }
-  
-  const bestSet = getBestSet()
+  const bestSet = sets.length > 0 
+    ? sets.reduce((best, current) => {
+        const currentVolume = current.weight * current.reps
+        const bestVolume = best.weight * best.reps
+        return currentVolume > bestVolume ? current : best
+      })
+    : null
   
   return (
     <div className="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
@@ -145,8 +175,8 @@ export function SetTracker({
                     onChange={(e) => setFormData({ ...formData, rpe: e.target.value })}
                     placeholder="RPE"
                     className="w-16 px-2 py-1.5 bg-gray-900 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
-                    min="1"
-                    max="10"
+                    min={VALIDATION.MIN_RPE}
+                    max={VALIDATION.MAX_RPE}
                   />
                   <div className="flex gap-1 ml-auto">
                     <button
@@ -231,8 +261,8 @@ export function SetTracker({
                 onChange={(e) => setFormData({ ...formData, rpe: e.target.value })}
                 placeholder="RPE"
                 className="w-16 px-2 py-1.5 bg-gray-900 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
-                min="1"
-                max="10"
+                min={VALIDATION.MIN_RPE}
+                max={VALIDATION.MAX_RPE}
               />
               <div className="flex gap-1 ml-auto">
                 <button
