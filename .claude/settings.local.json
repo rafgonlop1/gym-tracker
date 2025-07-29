@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npx prisma:*)",
+      "Bash(mkdir:*)",
+      "Bash(npm run:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git config:*)",
+      "Bash(git push:*)",
+      "Bash(cp:*)",
+      "Bash(rm:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx create-remix:*)",
+      "Bash(npx create-react-router:*)",
+      "Bash(npx tailwindcss init:*)",
+      "Bash(ls:*)"
+    ],
+    "deny": []
+  }
+}
