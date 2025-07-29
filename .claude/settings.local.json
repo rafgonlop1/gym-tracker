@@ -15,7 +15,8 @@
       "Bash(npx create-remix:*)",
       "Bash(npx create-react-router:*)",
       "Bash(npx tailwindcss init:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(find:*)"
     ],
     "deny": []
   }

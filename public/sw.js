@@ -1,43 +1,18 @@
-const CACHE_NAME = 'pwa-cache-v1';
-const urlsToCache = [
-  '/',
-  '/build/',
-  '/favicon.ico'
-];
+// Basic Service Worker for Gym Tracker
+// This prevents the 404 error when the browser looks for a service worker
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('Cache abierto');
-        return cache.addAll(urlsToCache);
-      })
-  );
-});
-
-self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        if (response) {
-          return response;
-        }
-        return fetch(event.request);
-      })
-  );
+  console.log('Service Worker: Installing...');
+  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  const cacheWhitelist = [CACHE_NAME];
-  event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheWhitelist.indexOf(cacheName) === -1) {
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
-  );
+  console.log('Service Worker: Activating...');
+  event.waitUntil(self.clients.claim());
 });
+
+self.addEventListener('fetch', (event) => {
+  // For now, just let the browser handle all requests normally
+  // In the future, we could add caching strategies here
+  return;
+}); 

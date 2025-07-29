@@ -1,0 +1,44 @@
+import type { Metric } from '~/types';
+
+export const getLatestValue = (metric: Metric) => {
+  if (metric.measurements.length === 0) return null;
+  return metric.measurements[metric.measurements.length - 1].value;
+};
+
+export const getPreviousValue = (metric: Metric) => {
+  if (metric.measurements.length < 2) return null;
+  return metric.measurements[metric.measurements.length - 2].value;
+};
+
+export const getTrend = (metric: Metric) => {
+  const latest = getLatestValue(metric);
+  const previous = getPreviousValue(metric);
+  if (!latest || !previous) return "stable";
+  return latest > previous ? "up" : latest < previous ? "down" : "stable";
+};
+
+export const getTrendIcon = (trend: string) => {
+  return trend === "up" ? "📈" : trend === "down" ? "📉" : "➡️";
+};
+
+export const getTrendColor = (trend: string, targetType?: string) => {
+  if (trend === "stable") return "text-gray-600";
+  if (targetType === "lower") {
+    return trend === "down" ? "text-green-600" : "text-red-600";
+  }
+  if (targetType === "higher") {
+    return trend === "up" ? "text-green-600" : "text-red-600";
+  }
+  return "text-gray-600";
+};
+
+export const getColorClasses = (color: string) => {
+  const colors = {
+    blue: "bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300",
+    green: "bg-green-50 border-green-200 text-green-800 dark:bg-green-900/20 dark:border-green-800 dark:text-green-300",
+    orange: "bg-orange-50 border-orange-200 text-orange-800 dark:bg-orange-900/20 dark:border-orange-800 dark:text-orange-300",
+    purple: "bg-purple-50 border-purple-200 text-purple-800 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-300",
+    red: "bg-red-50 border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300",
+  };
+  return colors[color as keyof typeof colors] || colors.blue;
+}; 

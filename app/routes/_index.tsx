@@ -1,138 +1,389 @@
 import type { MetaFunction } from "@remix-run/node";
+import { useReducer, useEffect } from "react";
+import { appReducer } from "~/state/reducer";
+import { defaultMetrics, defaultExercises, defaultExerciseCategories } from "~/data/defaults";
+import { useRestTimer } from "~/hooks/useRestTimer";
+import { DailySheetForm } from "~/components/DailySheetForm";
+import { AddMetricForm } from "~/components/AddMetricForm";
+import { ExercisesView } from "~/components/ExercisesView";
+import { CalendarView } from "~/components/CalendarView";
+import { ProgressView } from "~/components/ProgressView";
+import { getLatestValue, getPreviousValue, getTrend, getTrendIcon, getTrendColor, getColorClasses } from "~/utils/helpers";
 
 export const meta: MetaFunction = () => {
   return [
-    { title: "New Remix App" },
-    { name: "description", content: "Welcome to Remix!" },
+    { title: "Gym Tracker - Dashboard" },
+    { name: "description", content: "Track your fitness progress with ease" },
   ];
 };
 
-export default function Index() {
-  return (
-    <div className="flex h-screen items-center justify-center">
-      <div className="flex flex-col items-center gap-16">
-        <header className="flex flex-col items-center gap-9">
-          <h1 className="leading text-2xl font-bold text-gray-800 dark:text-gray-100">
-            Welcome to <span className="sr-only">Remix</span>
-          </h1>
-          <div className="h-[144px] w-[434px]">
-            <img
-              src="/logo-light.png"
-              alt="Remix"
-              className="block w-full dark:hidden"
-            />
-            <img
-              src="/logo-dark.png"
-              alt="Remix"
-              className="hidden w-full dark:block"
-            />
-          </div>
-        </header>
-        <nav className="flex flex-col items-center justify-center gap-4 rounded-3xl border border-gray-200 p-6 dark:border-gray-700">
-          <p className="leading-6 text-gray-700 dark:text-gray-200">
-            What&apos;s next?
-          </p>
-          <ul>
-            {resources.map(({ href, text, icon }) => (
-              <li key={href}>
-                <a
-                  className="group flex items-center gap-3 self-stretch p-3 leading-normal text-blue-700 hover:underline dark:text-blue-500"
-                  href={href}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {icon}
-                  {text}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </nav>
+export default function Dashboard() {
+  const [state, dispatch] = useReducer(appReducer, {
+    metrics: defaultMetrics,
+    exercises: defaultExercises,
+    exerciseCategories: defaultExerciseCategories,
+    view: "dashboard",
+  });
+
+  const {
+    restTime,
+    isRestTimerActive,
+    restDuration,
+    setRestDuration,
+    startRestTimer,
+    stopRestTimer,
+    pauseRestTimer,
+    resumeRestTimer,
+    formatTime,
+    audioRef
+  } = useRestTimer();
+
+  // localStorage persistence
+  useEffect(() => {
+    const savedData = localStorage.getItem("gym-tracker-data");
+    if (savedData) {
+      try {
+        const parsed = JSON.parse(savedData);
+        dispatch({
+          type: "LOAD_DATA",
+          metrics: parsed.metrics,
+          exercises: parsed.exercises,
+          exerciseCategories: parsed.exerciseCategories
+        });
+      } catch (e) {
+        console.error("Error loading saved data:", e);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const dataToSave = {
+      metrics: state.metrics,
+      exercises: state.exercises,
+      exerciseCategories: state.exerciseCategories
+    };
+    localStorage.setItem("gym-tracker-data", JSON.stringify(dataToSave));
+  }, [state.metrics, state.exercises, state.exerciseCategories]);
+
+  // Main render based on current view
+  if (state.view === "daily-sheet") {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
+        <DailySheetForm state={state} dispatch={dispatch} />
       </div>
+    );
+  }
+
+  if (state.view === "add-metric") {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
+        <AddMetricForm dispatch={dispatch} />
+      </div>
+    );
+  }
+
+  if (state.view === "exercises") {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
+        <ExercisesView state={state} dispatch={dispatch} />
+      </div>
+    );
+  }
+
+  if (state.view === "calendar") {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
+        <CalendarView state={state} dispatch={dispatch} />
+      </div>
+    );
+  }
+
+  if (state.view === "progress") {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
+        <ProgressView state={state} dispatch={dispatch} />
+      </div>
+    );
+  }
+
+  // Dashboard view
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Header */}
+      <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-3">
+              <div className="text-2xl">💪</div>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                Gym Tracker
+              </h1>
+            </div>
+            <div className="flex items-center space-x-4">
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                {state.metrics.length} métricas activas
+              </span>
+              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                U
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Welcome Section */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+            Dashboard de Métricas
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400">
+            Monitorea tu progreso y alcanza tus objetivos de fitness
+          </p>
+        </div>
+
+        {/* Rest Timer */}
+        <div className="mb-8">
+          <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl p-6 text-white">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold flex items-center space-x-2">
+                <span>⏱️</span>
+                <span>Timer de Descanso</span>
+              </h2>
+              
+              <div className="flex items-center space-x-3">
+                <select
+                  value={restDuration}
+                  onChange={(e) => setRestDuration(Number(e.target.value))}
+                  className="px-3 py-1 bg-white/20 text-white border border-white/30 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-white/50"
+                  disabled={isRestTimerActive}
+                >
+                  <option value={30}>30s</option>
+                  <option value={60}>1min</option>
+                  <option value={90}>1:30min</option>
+                  <option value={120}>2min</option>
+                  <option value={180}>3min</option>
+                  <option value={300}>5min</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <div className="text-center">
+                  <div className="text-4xl font-mono font-bold">
+                    {formatTime(restTime)}
+                  </div>
+                  <div className="text-sm opacity-80">
+                    {restTime === 0 ? 'Listo para entrenar' : 
+                     isRestTimerActive ? 'Descansando...' : 'Pausado'}
+                  </div>
+                </div>
+                
+                {restTime > 0 && (
+                  <div className="flex-1 max-w-xs">
+                    <div className="w-full bg-white/20 rounded-full h-2">
+                      <div 
+                        className="bg-white h-2 rounded-full transition-all duration-1000"
+                        style={{ 
+                          width: `${100 - (restTime / restDuration) * 100}%` 
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center space-x-2">
+                {!isRestTimerActive && restTime === 0 && (
+                  <button
+                    onClick={startRestTimer}
+                    className="flex items-center space-x-2 bg-white/20 hover:bg-white/30 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                  >
+                    <span>▶️</span>
+                    <span>Iniciar</span>
+                  </button>
+                )}
+                
+                {isRestTimerActive && (
+                  <button
+                    onClick={pauseRestTimer}
+                    className="flex items-center space-x-2 bg-white/20 hover:bg-white/30 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                  >
+                    <span>⏸️</span>
+                    <span>Pausar</span>
+                  </button>
+                )}
+                
+                {!isRestTimerActive && restTime > 0 && (
+                  <button
+                    onClick={resumeRestTimer}
+                    className="flex items-center space-x-2 bg-white/20 hover:bg-white/30 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                  >
+                    <span>▶️</span>
+                    <span>Reanudar</span>
+                  </button>
+                )}
+                
+                {restTime > 0 && (
+                  <button
+                    onClick={stopRestTimer}
+                    className="flex items-center space-x-2 bg-red-500/80 hover:bg-red-500 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                  >
+                    <span>⏹️</span>
+                    <span>Parar</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          {state.metrics.map((metric) => {
+            const latestValue = getLatestValue(metric);
+            const previousValue = getPreviousValue(metric);
+            const trend = getTrend(metric);
+            
+            return (
+              <div
+                key={metric.id}
+                className={`rounded-lg border-2 p-6 transition-all hover:shadow-lg cursor-pointer ${getColorClasses(metric.color)}`}
+                onClick={() => dispatch({ type: "SET_VIEW", view: "progress", metricId: metric.id })}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-2xl">{metric.icon}</span>
+                    <h3 className="font-semibold text-lg">{metric.name}</h3>
+                  </div>
+                  <span className={`text-lg ${getTrendColor(trend, metric.targetType)}`}>
+                    {getTrendIcon(trend)}
+                  </span>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-baseline space-x-2">
+                    <span className="text-3xl font-bold">
+                      {latestValue || "—"}
+                    </span>
+                    <span className="text-sm opacity-75">{metric.unit}</span>
+                  </div>
+                  
+                  {previousValue && (
+                    <div className="flex items-center justify-between text-sm opacity-75">
+                      <span>
+                        Anterior: {previousValue}{metric.unit}
+                      </span>
+                      <span>{metric.measurements[metric.measurements.length - 1]?.date}</span>
+                    </div>
+                  )}
+                  
+                  {latestValue && previousValue && (
+                    <div className="flex items-center space-x-2 text-sm">
+                      <span className={getTrendColor(trend, metric.targetType)}>
+                        {trend === "down" ? "↓" : trend === "up" ? "↑" : "→"}
+                        {Math.abs(latestValue - previousValue).toFixed(1)}{metric.unit}
+                      </span>
+                      <span className="opacity-75">vs anterior</span>
+                    </div>
+                  )}
+
+                  {metric.target && (
+                    <div className="text-xs opacity-75">
+                      Objetivo: {metric.target}{metric.unit}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Action Buttons */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <button
+            onClick={() => dispatch({ type: "SET_VIEW", view: "daily-sheet" })}
+            className="flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-4 px-6 rounded-lg transition-colors"
+          >
+            <span className="text-lg">📋</span>
+            <span>Ficha Diaria</span>
+          </button>
+
+          <button
+            onClick={() => dispatch({ type: "SET_VIEW", view: "calendar" })}
+            className="flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-4 px-6 rounded-lg transition-colors"
+          >
+            <span className="text-lg">📅</span>
+            <span>Calendario</span>
+          </button>
+          
+          <button 
+            onClick={() => dispatch({ type: "SET_VIEW", view: "exercises" })}
+            className="flex items-center justify-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white font-medium py-4 px-6 rounded-lg transition-colors"
+          >
+            <span className="text-lg">🏋️</span>
+            <span>Ejercicios</span>
+          </button>
+
+          <button 
+            onClick={() => dispatch({ type: "SET_VIEW", view: "progress" })}
+            className="flex items-center justify-center space-x-2 bg-orange-600 hover:bg-orange-700 text-white font-medium py-4 px-6 rounded-lg transition-colors"
+          >
+            <span className="text-lg">📈</span>
+            <span>Ver Progreso</span>
+          </button>
+        </div>
+
+        {/* Quick Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { 
+              label: "Total mediciones", 
+              value: state.metrics.reduce((acc, m) => acc + m.measurements.length, 0).toString(), 
+              icon: "📊" 
+            },
+            { label: "Métricas activas", value: state.metrics.length.toString(), icon: "🎯" },
+            { 
+              label: "Última medición", 
+              value: state.metrics
+                .flatMap(m => m.measurements)
+                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
+                ? new Date(state.metrics.flatMap(m => m.measurements).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0].date).toLocaleDateString()
+                : "N/A", 
+              icon: "📅" 
+            },
+            { 
+              label: "Con objetivos", 
+              value: state.metrics.filter(m => m.target).length.toString(), 
+              icon: "🏆" 
+            },
+          ].map((stat, index) => (
+            <div key={index} className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center space-x-3">
+                <span className="text-2xl">{stat.icon}</span>
+                <div>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {stat.value}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {stat.label}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </main>
+
+      {/* Audio element for timer notifications */}
+      <audio 
+        ref={audioRef}
+        preload="auto"
+      >
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmAYBzuU2vi2dyMGK3vI7NiQQAoU" type="audio/wav" />
+      </audio>
     </div>
   );
 }
-
-const resources = [
-  {
-    href: "https://remix.run/start/quickstart",
-    text: "Quick Start (5 min)",
-    icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="24"
-        height="20"
-        viewBox="0 0 20 20"
-        fill="none"
-        className="stroke-gray-600 group-hover:stroke-current dark:stroke-gray-300"
-      >
-        <path
-          d="M8.51851 12.0741L7.92592 18L15.6296 9.7037L11.4815 7.33333L12.0741 2L4.37036 10.2963L8.51851 12.0741Z"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    ),
-  },
-  {
-    href: "https://remix.run/start/tutorial",
-    text: "Tutorial (30 min)",
-    icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="24"
-        height="20"
-        viewBox="0 0 20 20"
-        fill="none"
-        className="stroke-gray-600 group-hover:stroke-current dark:stroke-gray-300"
-      >
-        <path
-          d="M4.561 12.749L3.15503 14.1549M3.00811 8.99944H1.01978M3.15503 3.84489L4.561 5.2508M8.3107 1.70923L8.3107 3.69749M13.4655 3.84489L12.0595 5.2508M18.1868 17.0974L16.635 18.6491C16.4636 18.8205 16.1858 18.8205 16.0144 18.6491L13.568 16.2028C13.383 16.0178 13.0784 16.0347 12.915 16.239L11.2697 18.2956C11.047 18.5739 10.6029 18.4847 10.505 18.142L7.85215 8.85711C7.75756 8.52603 8.06365 8.21994 8.39472 8.31453L17.6796 10.9673C18.0223 11.0653 18.1115 11.5094 17.8332 11.7321L15.7766 13.3773C15.5723 13.5408 15.5554 13.8454 15.7404 14.0304L18.1868 16.4767C18.3582 16.6481 18.3582 16.926 18.1868 17.0974Z"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    ),
-  },
-  {
-    href: "https://remix.run/docs",
-    text: "Remix Docs",
-    icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="24"
-        height="20"
-        viewBox="0 0 20 20"
-        fill="none"
-        className="stroke-gray-600 group-hover:stroke-current dark:stroke-gray-300"
-      >
-        <path
-          d="M9.99981 10.0751V9.99992M17.4688 17.4688C15.889 19.0485 11.2645 16.9853 7.13958 12.8604C3.01467 8.73546 0.951405 4.11091 2.53116 2.53116C4.11091 0.951405 8.73546 3.01467 12.8604 7.13958C16.9853 11.2645 19.0485 15.889 17.4688 17.4688ZM2.53132 17.4688C0.951566 15.8891 3.01483 11.2645 7.13974 7.13963C11.2647 3.01471 15.8892 0.951453 17.469 2.53121C19.0487 4.11096 16.9854 8.73551 12.8605 12.8604C8.73562 16.9853 4.11107 19.0486 2.53132 17.4688Z"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-        />
-      </svg>
-    ),
-  },
-  {
-    href: "https://rmx.as/discord",
-    text: "Join Discord",
-    icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="24"
-        height="20"
-        viewBox="0 0 24 20"
-        fill="none"
-        className="stroke-gray-600 group-hover:stroke-current dark:stroke-gray-300"
-      >
-        <path
-          d="M15.0686 1.25995L14.5477 1.17423L14.2913 1.63578C14.1754 1.84439 14.0545 2.08275 13.9422 2.31963C12.6461 2.16488 11.3406 2.16505 10.0445 2.32014C9.92822 2.08178 9.80478 1.84975 9.67412 1.62413L9.41449 1.17584L8.90333 1.25995C7.33547 1.51794 5.80717 1.99419 4.37748 2.66939L4.19 2.75793L4.07461 2.93019C1.23864 7.16437 0.46302 11.3053 0.838165 15.3924L0.868838 15.7266L1.13844 15.9264C2.81818 17.1714 4.68053 18.1233 6.68582 18.719L7.18892 18.8684L7.50166 18.4469C7.96179 17.8268 8.36504 17.1824 8.709 16.4944L8.71099 16.4904C10.8645 17.0471 13.128 17.0485 15.2821 16.4947C15.6261 17.1826 16.0293 17.8269 16.4892 18.4469L16.805 18.8725L17.3116 18.717C19.3056 18.105 21.1876 17.1751 22.8559 15.9238L23.1224 15.724L23.1528 15.3923C23.5873 10.6524 22.3579 6.53306 19.8947 2.90714L19.7759 2.73227L19.5833 2.64518C18.1437 1.99439 16.6386 1.51826 15.0686 1.25995ZM16.6074 10.7755L16.6074 10.7756C16.5934 11.6409 16.0212 12.1444 15.4783 12.1444C14.9297 12.1444 14.3493 11.6173 14.3493 10.7877C14.3493 9.94885 14.9378 9.41192 15.4783 9.41192C16.0471 9.41192 16.6209 9.93851 16.6074 10.7755ZM8.49373 12.1444C7.94513 12.1444 7.36471 11.6173 7.36471 10.7877C7.36471 9.94885 7.95323 9.41192 8.49373 9.41192C9.06038 9.41192 9.63892 9.93712 9.6417 10.7815C9.62517 11.6239 9.05462 12.1444 8.49373 12.1444Z"
-          strokeWidth="1.5"
-        />
-      </svg>
-    ),
-  },
-];
