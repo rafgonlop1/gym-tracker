@@ -1,10 +1,10 @@
-import type { AppState, Metric, Exercise, ExerciseCategory, WorkoutSession, WorkoutExercise, ExerciseSet, CardioActivity } from '~/types';
+import type { AppState, Metric, Exercise, ExerciseCategory, WorkoutSession, WorkoutExercise, ExerciseSet, CardioActivity, DailyPhotos, DailyPhoto } from '~/types';
 
 // Reducer for state management
 export function appReducer(state: AppState, action: any): AppState {
   switch (action.type) {
     case "SET_VIEW":
-      return { ...state, view: action.view, selectedMetricId: action.metricId };
+      return { ...state, view: action.view, selectedMetricId: action.metricId, selectedDate: action.selectedDate };
     
     case "ADD_METRIC":
       const newMetric: Metric = {
@@ -66,7 +66,8 @@ export function appReducer(state: AppState, action: any): AppState {
         metrics: action.metrics || state.metrics,
         exercises: action.exercises || state.exercises,
         exerciseCategories: action.exerciseCategories || state.exerciseCategories,
-        workoutSessions: action.workoutSessions || state.workoutSessions
+        workoutSessions: action.workoutSessions || state.workoutSessions,
+        dailyPhotos: action.dailyPhotos || state.dailyPhotos || []
       };
     
     case "SELECT_WORKOUT_TYPE":
@@ -194,6 +195,7 @@ export function appReducer(state: AppState, action: any): AppState {
           : [...state.workoutSessions, finishedSession],
         currentWorkoutSession: undefined,
         selectedWorkoutType: undefined,
+        selectedDate: undefined,
         view: isEditing ? "daily-sheet" : "dashboard"
       };
     
@@ -268,6 +270,7 @@ export function appReducer(state: AppState, action: any): AppState {
         ...state,
         currentWorkoutSession: undefined,
         selectedWorkoutType: undefined,
+        selectedDate: undefined,
         view: "daily-sheet"
       };
     
@@ -276,7 +279,92 @@ export function appReducer(state: AppState, action: any): AppState {
         ...state,
         currentWorkoutSession: undefined,
         selectedWorkoutType: undefined,
+        selectedDate: undefined,
         view: "dashboard"
+      };
+    
+    case "ADD_DAILY_PHOTOS":
+      const existingDayPhotos = state.dailyPhotos.find(dp => dp.date === action.date);
+      
+      if (existingDayPhotos) {
+        // Update existing day photos, avoiding duplicates by type
+        const updatedPhotos = [
+          // Keep existing photos that don't conflict with new ones
+          ...existingDayPhotos.photos.filter(existingPhoto => 
+            !action.photos.some((newPhoto: DailyPhoto) => newPhoto.type === existingPhoto.type)
+          ),
+          // Add all new photos
+          ...action.photos
+        ];
+        
+        return {
+          ...state,
+          dailyPhotos: state.dailyPhotos.map(dp => 
+            dp.date === action.date 
+              ? { ...dp, photos: updatedPhotos }
+              : dp
+          )
+        };
+      } else {
+        // Create new day photos
+        const newDayPhotos: DailyPhotos = {
+          date: action.date,
+          photos: action.photos
+        };
+        
+        return {
+          ...state,
+          dailyPhotos: [...state.dailyPhotos, newDayPhotos].sort(
+            (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+          )
+        };
+      }
+    
+    case "UPDATE_DAILY_PHOTO":
+      return {
+        ...state,
+        dailyPhotos: state.dailyPhotos.map(dp => 
+          dp.date === action.date 
+            ? {
+                ...dp,
+                photos: dp.photos.map(photo => 
+                  photo.id === action.photoId 
+                    ? { ...photo, ...action.updates }
+                    : photo
+                )
+              }
+            : dp
+        )
+      };
+    
+    case "DELETE_DAILY_PHOTO":
+      return {
+        ...state,
+        dailyPhotos: state.dailyPhotos.map(dp => 
+          dp.date === action.date 
+            ? {
+                ...dp,
+                photos: dp.photos.filter(photo => photo.id !== action.photoId)
+              }
+            : dp
+        ).filter(dp => dp.photos.length > 0) // Remove empty photo days
+      };
+    
+    case "REPLACE_DAILY_PHOTO":
+      return {
+        ...state,
+        dailyPhotos: state.dailyPhotos.map(dp => 
+          dp.date === action.date 
+            ? {
+                ...dp,
+                photos: dp.photos.map(photo => 
+                  photo.type === action.photoType 
+                    ? action.newPhoto
+                    : photo
+                )
+              }
+            : dp
+        )
       };
     
     default:

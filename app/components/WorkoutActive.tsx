@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import type { AppState, AppDispatch, WorkoutSession, WorkoutExercise, ExerciseSet, CardioActivity, HIITRound, Exercise } from "~/types";
 import { workoutTypes } from "~/data/defaults";
+import { getDateString } from "~/utils/helpers";
 
 interface WorkoutActiveProps {
   state: AppState;
@@ -66,7 +67,7 @@ export function WorkoutActive({ state, dispatch }: WorkoutActiveProps) {
     if (!currentWorkout && state.selectedWorkoutType) {
       const session: WorkoutSession = {
         id: `workout-${Date.now()}`,
-        date: new Date().toISOString().split('T')[0],
+        date: state.selectedDate || getDateString(),
         workoutType: state.selectedWorkoutType,
         startTime: new Date().toISOString(),
         exercises: [],

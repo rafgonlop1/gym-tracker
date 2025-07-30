@@ -1,7 +1,8 @@
 import { useState } from "react";
-import type { AppState, Metric, Measurement, WorkoutSession } from "~/types";
-import { getLatestValue } from "~/utils/helpers";
+import type { AppState, Metric, Measurement, WorkoutSession, DailyPhoto } from "~/types";
+import { getLatestValue, getDateString } from "~/utils/helpers";
 import { workoutTypes } from "~/data/defaults";
+import { PhotoUpload } from "./PhotoUpload";
 
 interface CalendarViewProps {
   state: AppState;
@@ -20,11 +21,12 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
   const daysInMonth = lastDay.getDate();
   const startingDayOfWeek = firstDay.getDay();
 
-  // Create a map of dates to all measurements and workouts for that date
+  // Create a map of dates to all measurements, workouts and photos for that date
   const createDailyDataMap = () => {
     const dailyData = new Map<string, {
       metrics: Array<{metric: Metric, measurement: Measurement}>,
-      workouts: WorkoutSession[]
+      workouts: WorkoutSession[],
+      photos: DailyPhoto[]
     }>();
     
     // Add metrics data
@@ -32,7 +34,7 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
       metric.measurements.forEach(measurement => {
         const dateStr = measurement.date;
         if (!dailyData.has(dateStr)) {
-          dailyData.set(dateStr, { metrics: [], workouts: [] });
+          dailyData.set(dateStr, { metrics: [], workouts: [], photos: [] });
         }
         dailyData.get(dateStr)!.metrics.push({ metric, measurement });
       });
@@ -43,10 +45,19 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
       if (workout.completed) {
         const dateStr = workout.date;
         if (!dailyData.has(dateStr)) {
-          dailyData.set(dateStr, { metrics: [], workouts: [] });
+          dailyData.set(dateStr, { metrics: [], workouts: [], photos: [] });
         }
         dailyData.get(dateStr)!.workouts.push(workout);
       }
+    });
+    
+    // Add photo data
+    state.dailyPhotos.forEach(dayPhotos => {
+      const dateStr = dayPhotos.date;
+      if (!dailyData.has(dateStr)) {
+        dailyData.set(dateStr, { metrics: [], workouts: [], photos: [] });
+      }
+      dailyData.get(dateStr)!.photos = dayPhotos.photos;
     });
     
     return dailyData;
@@ -64,9 +75,8 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
 
   // Add days of the month
   for (let day = 1; day <= daysInMonth; day++) {
-    const date = new Date(currentYear, currentMonth, day);
-    const dateStr = date.toISOString().split('T')[0];
-    const dayData = dailyDataMap.get(dateStr) || { metrics: [], workouts: [] };
+    const dateStr = getDateString(currentYear, currentMonth, day);
+    const dayData = dailyDataMap.get(dateStr) || { metrics: [], workouts: [], photos: [] };
     
     week.push({ date: dateStr, day, dayData });
     
@@ -99,7 +109,7 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
     setShowEditModal(true);
   };
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = getDateString();
 
   // Helper functions for workouts
   const getWorkoutIcon = (workoutType: string) => {
@@ -171,8 +181,9 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
     };
 
     const selectedDate = new Date(selectedDay);
-    const dayData = dailyDataMap.get(selectedDay) || { metrics: [], workouts: [] };
+    const dayData = dailyDataMap.get(selectedDay) || { metrics: [], workouts: [], photos: [] };
     const dayWorkouts = dayData.workouts;
+    const dayPhotos = dayData.photos;
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -226,7 +237,7 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
                   <button
                     onClick={() => {
                       setShowEditModal(false);
-                      dispatch({ type: "SET_VIEW", view: "workout-selection" });
+                      dispatch({ type: "SET_VIEW", view: "workout-selection", selectedDate: selectedDay });
                     }}
                     className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors text-sm"
                   >
@@ -437,6 +448,15 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
                 );
               })}
 
+              {/* Photos Section */}
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+                <PhotoUpload 
+                  date={selectedDay}
+                  existingPhotos={dayPhotos}
+                  dispatch={dispatch}
+                />
+              </div>
+
               <div className="flex justify-end space-x-3 pt-4">
                 <button
                   type="button"
@@ -476,16 +496,15 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
         <h5 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
           📊 Estadísticas del Mes
         </h5>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
           {(() => {
             const monthDates = Array.from({ length: daysInMonth }, (_, i) => {
-              const date = new Date(currentYear, currentMonth, i + 1);
-              return date.toISOString().split('T')[0];
+              return getDateString(currentYear, currentMonth, i + 1);
             });
             
             const daysWithData = monthDates.filter(date => {
               const dayData = dailyDataMap.get(date);
-              return dayData && (dayData.metrics.length > 0 || dayData.workouts.length > 0);
+              return dayData && (dayData.metrics.length > 0 || dayData.workouts.length > 0 || dayData.photos.length > 0);
             }).length;
             const totalMeasurements = monthDates.reduce((total, date) => {
               const dayData = dailyDataMap.get(date);
@@ -494,6 +513,10 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
             const totalWorkouts = monthDates.reduce((total, date) => {
               const dayData = dailyDataMap.get(date);
               return total + (dayData?.workouts.length || 0);
+            }, 0);
+            const totalPhotos = monthDates.reduce((total, date) => {
+              const dayData = dailyDataMap.get(date);
+              return total + (dayData?.photos.length || 0);
             }, 0);
             
             return (
@@ -523,8 +546,16 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
                   </p>
                 </div>
                 <div className="text-center">
+                  <p className="text-3xl font-bold text-pink-600 dark:text-pink-400">
+                    {totalPhotos}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Total fotografías
+                  </p>
+                </div>
+                <div className="text-center">
                   <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">
-                    {daysWithData > 0 ? ((totalMeasurements + totalWorkouts) / daysWithData).toFixed(1) : '0'}
+                    {daysWithData > 0 ? ((totalMeasurements + totalWorkouts + totalPhotos) / daysWithData).toFixed(1) : '0'}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     Promedio actividades/día
@@ -577,11 +608,12 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
                 return <div key={`${weekIndex}-${dayIndex}`} className="aspect-square" />;
               }
               
-              const hasData = day.dayData.metrics.length > 0 || day.dayData.workouts.length > 0;
+              const hasData = day.dayData.metrics.length > 0 || day.dayData.workouts.length > 0 || day.dayData.photos.length > 0;
               const isToday = day.date === today;
               const metricsCount = day.dayData.metrics.length;
               const workoutsCount = day.dayData.workouts.length;
-              const totalItems = metricsCount + workoutsCount;
+              const photosCount = day.dayData.photos.length;
+              const totalItems = metricsCount + workoutsCount + photosCount;
               const totalMetrics = state.metrics.length;
               const completionPercentage = totalMetrics > 0 ? (metricsCount / totalMetrics) * 100 : 0;
               
@@ -601,7 +633,7 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
                     ${isToday ? 'ring-3 ring-orange-500 ring-opacity-60' : ''}
                     hover:shadow-lg transition-all transform hover:scale-105
                   `}
-                  title={`${day.day} - ${hasData ? `${metricsCount}/${totalMetrics} métricas, ${workoutsCount} entrenamientos` : 'Click para agregar datos'}`}
+                  title={`${day.day} - ${hasData ? `${metricsCount}/${totalMetrics} métricas, ${workoutsCount} entrenamientos, ${photosCount} fotos` : 'Click para agregar datos'}`}
                 >
                   <span className={`text-lg font-bold ${hasData ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-600'}`}>
                     {day.day}
@@ -621,8 +653,14 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
                           {data.metric.icon}
                         </span>
                       ))}
-                      {totalItems > 4 && (
-                        <span className="text-xs text-gray-600">+{totalItems - 4}</span>
+                      {/* Show photo icon if there are photos */}
+                      {photosCount > 0 && (
+                        <span key="photos" className="text-xs">
+                          📸
+                        </span>
+                      )}
+                      {totalItems > 5 && (
+                        <span className="text-xs text-gray-600">+{totalItems - 5}</span>
                       )}
                     </div>
                   )}

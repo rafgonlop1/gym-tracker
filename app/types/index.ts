@@ -111,6 +111,21 @@ export interface WorkoutSession {
   completed: boolean;
 }
 
+// Daily photo types
+export type PhotoType = "front" | "back" | "side";
+
+export interface DailyPhoto {
+  id: string;
+  type: PhotoType;
+  dataUrl: string; // base64 encoded image
+  timestamp: string; // ISO string
+}
+
+export interface DailyPhotos {
+  date: string; // YYYY-MM-DD format
+  photos: DailyPhoto[];
+}
+
 export interface AppState {
   metrics: Metric[];
   exercises: Exercise[];
@@ -118,8 +133,10 @@ export interface AppState {
   view: AppView;
   selectedMetricId?: string;
   selectedWorkoutType?: WorkoutType;
+  selectedDate?: string;
   currentWorkoutSession?: WorkoutSession;
   workoutSessions: WorkoutSession[];
+  dailyPhotos: DailyPhotos[];
 }
 
 export type AppDispatch = (action: any) => void; 

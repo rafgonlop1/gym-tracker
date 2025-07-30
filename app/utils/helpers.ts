@@ -41,4 +41,21 @@ export const getColorClasses = (color: string) => {
     red: "bg-red-50 border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300",
   };
   return colors[color as keyof typeof colors] || colors.blue;
+};
+
+// Helper function to create date strings without timezone issues
+export const getDateString = (year?: number, month?: number, day?: number) => {
+  if (year && month !== undefined && day) {
+    // month is 0-indexed in JavaScript Date, but we want 1-indexed for string
+    const monthStr = String(month + 1).padStart(2, '0');
+    const dayStr = String(day).padStart(2, '0');
+    return `${year}-${monthStr}-${dayStr}`;
+  }
+  
+  // If no parameters, return today's date
+  const now = new Date();
+  const yearStr = now.getFullYear();
+  const monthStr = String(now.getMonth() + 1).padStart(2, '0');
+  const dayStr = String(now.getDate()).padStart(2, '0');
+  return `${yearStr}-${monthStr}-${dayStr}`;
 }; 

@@ -26,6 +26,7 @@ export default function Dashboard() {
     exerciseCategories: defaultExerciseCategories,
     view: "dashboard",
     workoutSessions: [],
+    dailyPhotos: [],
   });
 
   // localStorage persistence
@@ -39,7 +40,8 @@ export default function Dashboard() {
           metrics: parsed.metrics,
           exercises: parsed.exercises,
           exerciseCategories: parsed.exerciseCategories,
-          workoutSessions: parsed.workoutSessions || []
+          workoutSessions: parsed.workoutSessions || [],
+          dailyPhotos: parsed.dailyPhotos || []
         });
       } catch (e) {
         console.error("Error loading saved data:", e);
@@ -52,10 +54,11 @@ export default function Dashboard() {
       metrics: state.metrics,
       exercises: state.exercises,
       exerciseCategories: state.exerciseCategories,
-      workoutSessions: state.workoutSessions
+      workoutSessions: state.workoutSessions,
+      dailyPhotos: state.dailyPhotos
     };
     localStorage.setItem("gym-tracker-data", JSON.stringify(dataToSave));
-  }, [state.metrics, state.exercises, state.exerciseCategories, state.workoutSessions]);
+  }, [state.metrics, state.exercises, state.exerciseCategories, state.workoutSessions, state.dailyPhotos]);
 
   // Main render based on current view
   if (state.view === "daily-sheet") {
@@ -263,7 +266,7 @@ export default function Dashboard() {
             className="flex items-center justify-center space-x-2 bg-orange-600 hover:bg-orange-700 text-white font-medium py-4 px-6 rounded-lg transition-colors"
           >
             <span className="text-lg">📈</span>
-            <span>Ver Progreso</span>
+            <span>Progreso</span>
           </button>
         </div>
 

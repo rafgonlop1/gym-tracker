@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import type { AppState, Metric, WorkoutSession } from "~/types";
-import { getColorClasses, getLatestValue } from "~/utils/helpers";
+import { getColorClasses, getLatestValue, getDateString } from "~/utils/helpers";
 import { workoutTypes } from "~/data/defaults";
+import { PhotoUpload } from "./PhotoUpload";
 
 interface DailySheetFormProps {
   state: AppState;
@@ -9,7 +10,7 @@ interface DailySheetFormProps {
 }
 
 export const DailySheetForm = ({ state, dispatch }: DailySheetFormProps) => {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getDateString();
   const [date, setDate] = useState(today);
   const [measurements, setMeasurements] = useState<{[key: string]: {value: string, notes: string}}>({});
 
@@ -64,6 +65,9 @@ export const DailySheetForm = ({ state, dispatch }: DailySheetFormProps) => {
   const dayWorkouts = state.workoutSessions.filter(session => 
     session.date === date && session.completed
   );
+
+  // Get photos for selected date
+  const dayPhotos = state.dailyPhotos.find(dp => dp.date === date)?.photos || [];
 
   const getWorkoutIcon = (workoutType: string) => {
     const config = workoutTypes.find(wt => wt.id === workoutType);
@@ -387,6 +391,15 @@ export const DailySheetForm = ({ state, dispatch }: DailySheetFormProps) => {
               </div>
             </div>
           ))}
+
+          {/* Photos Section */}
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+            <PhotoUpload 
+              date={date}
+              existingPhotos={dayPhotos}
+              dispatch={dispatch}
+            />
+          </div>
 
           <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
             <button
