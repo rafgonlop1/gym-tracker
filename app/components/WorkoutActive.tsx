@@ -532,44 +532,64 @@ export function WorkoutActive({ state, dispatch }: WorkoutActiveProps) {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Hora de Fin
               </label>
-              <input
-                type="time"
-                value={currentWorkout.endTime ? 
-                  new Date(currentWorkout.endTime).toLocaleTimeString('en-GB', { 
-                    hour: '2-digit', 
-                    minute: '2-digit' 
-                  }) : ''
-                }
-                onChange={(e) => {
-                  if (e.target.value) {
-                    const [hours, minutes] = e.target.value.split(':');
-                    const endDate = new Date(currentWorkout.startTime);
-                    endDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-                    
-                    // If end time is before start time, assume it's the next day
-                    if (endDate < new Date(currentWorkout.startTime)) {
-                      endDate.setDate(endDate.getDate() + 1);
+              <div className="flex space-x-2">
+                <input
+                  type="time"
+                  value={currentWorkout.endTime ? 
+                    new Date(currentWorkout.endTime).toLocaleTimeString('en-GB', { 
+                      hour: '2-digit', 
+                      minute: '2-digit' 
+                    }) : ''
+                  }
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      const [hours, minutes] = e.target.value.split(':');
+                      const endDate = new Date(currentWorkout.startTime);
+                      endDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+                      
+                      // If end time is before start time, assume it's the next day
+                      if (endDate < new Date(currentWorkout.startTime)) {
+                        endDate.setDate(endDate.getDate() + 1);
+                      }
+                      
+                      const durationMinutes = Math.round((endDate.getTime() - new Date(currentWorkout.startTime).getTime()) / 1000 / 60);
+                      
+                      dispatch({ 
+                        type: "UPDATE_WORKOUT_SESSION", 
+                        updates: { 
+                          endTime: endDate.toISOString(),
+                          totalDuration: durationMinutes
+                        }
+                      });
+                    } else {
+                      dispatch({ 
+                        type: "UPDATE_WORKOUT_SESSION", 
+                        updates: { endTime: undefined, totalDuration: undefined }
+                      });
                     }
-                    
-                    const durationMinutes = Math.round((endDate.getTime() - new Date(currentWorkout.startTime).getTime()) / 1000 / 60);
+                  }}
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                  placeholder="No definido"
+                />
+                <button
+                  onClick={() => {
+                    const now = new Date();
+                    const durationMinutes = Math.round((now.getTime() - new Date(currentWorkout.startTime).getTime()) / 1000 / 60);
                     
                     dispatch({ 
                       type: "UPDATE_WORKOUT_SESSION", 
                       updates: { 
-                        endTime: endDate.toISOString(),
+                        endTime: now.toISOString(),
                         totalDuration: durationMinutes
                       }
                     });
-                  } else {
-                    dispatch({ 
-                      type: "UPDATE_WORKOUT_SESSION", 
-                      updates: { endTime: undefined, totalDuration: undefined }
-                    });
-                  }
-                }}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                placeholder="No definido"
-              />
+                  }}
+                  className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
+                  title="Establecer como ahora"
+                >
+                  🕐
+                </button>
+              </div>
             </div>
 
             <div>
@@ -606,9 +626,31 @@ export function WorkoutActive({ state, dispatch }: WorkoutActiveProps) {
           </div>
 
           <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-            <p className="text-sm text-blue-800 dark:text-blue-200">
-              💡 <strong>Tip:</strong> Puedes editar cualquiera de estos campos. Si cambias la duración, se calculará automáticamente la hora de fin. Si cambias las horas, se calculará la duración.
-            </p>
+            <div className="flex justify-between items-center">
+              <p className="text-sm text-blue-800 dark:text-blue-200">
+                💡 <strong>Tip:</strong> Puedes editar cualquiera de estos campos. Si cambias la duración, se calculará automáticamente la hora de fin.
+              </p>
+              {!isEditing && !currentWorkout.endTime && (
+                <button
+                  onClick={() => {
+                    const now = new Date();
+                    const durationMinutes = Math.round((now.getTime() - new Date(currentWorkout.startTime).getTime()) / 1000 / 60);
+                    
+                    dispatch({ 
+                      type: "UPDATE_WORKOUT_SESSION", 
+                      updates: { 
+                        endTime: now.toISOString(),
+                        totalDuration: durationMinutes > 0 ? durationMinutes : 1
+                      }
+                    });
+                  }}
+                  className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition-colors flex items-center space-x-1"
+                >
+                  <span>✅</span>
+                  <span>Terminar ahora</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Current Status */}
