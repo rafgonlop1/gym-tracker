@@ -437,15 +437,7 @@ export function TimerView({ dispatch }: TimerViewProps) {
             </div>
           </div>
         )}
-        
-        <div className="mt-8 text-center">
-          <button
-            onClick={() => dispatch({ type: "SET_VIEW", view: "dashboard" })}
-            className="text-blue-500 hover:underline"
-          >
-            ← Back to Dashboard
-          </button>
-        </div>
+
       </div>
       
       <audio 

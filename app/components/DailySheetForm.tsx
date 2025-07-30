@@ -14,21 +14,23 @@ export const DailySheetForm = ({ state, dispatch }: DailySheetFormProps) => {
   const [date, setDate] = useState(today);
   const [measurements, setMeasurements] = useState<{[key: string]: {value: string, notes: string}}>({});
 
-  // Check if already measured today
-  const todayMeasurements = state.metrics.reduce((acc, metric) => {
-    const todayMeasurement = metric.measurements.find(m => m.date === today);
-    if (todayMeasurement) {
-      acc[metric.id] = {
-        value: todayMeasurement.value.toString(),
-        notes: todayMeasurement.notes || ""
-      };
-    }
-    return acc;
-  }, {} as {[key: string]: {value: string, notes: string}});
+  // Load measurements for selected date
+  const loadMeasurementsForDate = (selectedDate: string) => {
+    return state.metrics.reduce((acc, metric) => {
+      const dateMeasurement = metric.measurements.find(m => m.date === selectedDate);
+      if (dateMeasurement) {
+        acc[metric.id] = {
+          value: dateMeasurement.value.toString(),
+          notes: dateMeasurement.notes || ""
+        };
+      }
+      return acc;
+    }, {} as {[key: string]: {value: string, notes: string}});
+  };
 
   useEffect(() => {
-    setMeasurements(todayMeasurements);
-  }, [today]);
+    setMeasurements(loadMeasurementsForDate(date));
+  }, [date, state.metrics]);
 
   const handleValueChange = (metricId: string, field: 'value' | 'notes', value: string) => {
     setMeasurements(prev => ({
@@ -402,13 +404,6 @@ export const DailySheetForm = ({ state, dispatch }: DailySheetFormProps) => {
           </div>
 
           <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <button
-              type="button"
-              onClick={() => dispatch({ type: "SET_VIEW", view: "dashboard" })}
-              className="px-6 py-3 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 font-medium"
-            >
-              Cancelar
-            </button>
             <button
               type="submit"
               className={`px-6 py-3 text-white rounded-md font-medium transition-colors ${

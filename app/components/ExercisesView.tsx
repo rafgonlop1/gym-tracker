@@ -339,15 +339,7 @@ export const ExercisesView = ({ state, dispatch }: ExercisesViewProps) => {
         ))}
       </div>
 
-      {/* Back Button */}
-      <div className="mt-8">
-        <button
-          onClick={() => dispatch({ type: "SET_VIEW", view: "dashboard" })}
-          className="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
-        >
-          ← Volver al Dashboard
-        </button>
-      </div>
+
 
       {/* Modals */}
       {showAddExercise && <AddExerciseForm />}

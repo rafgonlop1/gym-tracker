@@ -681,13 +681,7 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
         </div>
       </div>
 
-      {/* Back Button */}
-      <button
-        onClick={() => dispatch({ type: "SET_VIEW", view: "dashboard" })}
-        className="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
-      >
-        ← Volver al Dashboard
-      </button>
+
 
       {/* Edit Day Modal */}
       {showEditModal && <EditDayModal />}
