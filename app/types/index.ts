@@ -11,9 +11,9 @@ export interface Metric {
   unit: string;
   icon: string;
   color: string;
-  measurements: Measurement[];
+  targetType: "increase" | "decrease";
   target?: number;
-  targetType?: "lower" | "higher" | "maintain";
+  measurements: Measurement[];
 }
 
 export interface Exercise {
@@ -32,10 +32,94 @@ export interface ExerciseCategory {
   day?: string;
 }
 
+export type AppView = "dashboard" | "daily-sheet" | "add-metric" | "exercises" | "calendar" | "progress" | "timer" | "workout-selection" | "workout-active";
+
+export type WorkoutType = "push" | "pull" | "legs" | "cardio" | "hiit" | "plyometrics";
+
+export interface WorkoutTypeConfig {
+  id: WorkoutType;
+  name: string;
+  description: string;
+  icon: string;
+  color: string;
+  estimatedDuration?: string;
+}
+
+export type TimerMode = "rest" | "tabata";
+
+export interface TabataConfig {
+  warmupTime: number;
+  workTime: number;
+  restTime: number;
+  rounds: number;
+}
+
+export type TabataPhase = "warmup" | "work" | "rest" | "finished";
+
+// Workout session types
+export interface ExerciseSet {
+  setNumber: number;
+  reps?: number;
+  weight?: number;
+  rpe?: number;
+  completed: boolean;
+  notes?: string;
+}
+
+export interface WorkoutExercise {
+  exerciseId: string;
+  exerciseName: string;
+  sets: ExerciseSet[];
+  restTime?: number; // in seconds
+  notes?: string;
+}
+
+export interface CardioActivity {
+  id: string;
+  name: string;
+  duration?: number; // in minutes
+  distance?: number; // in km
+  calories?: number;
+  heartRate?: {
+    avg?: number;
+    max?: number;
+  };
+  intensity?: number; // 1-10 scale
+  notes?: string;
+}
+
+export interface HIITRound {
+  roundNumber: number;
+  workTime: number; // in seconds
+  restTime: number; // in seconds
+  exercises: string[];
+  intensity?: number; // 1-10 scale
+  completed: boolean;
+}
+
+export interface WorkoutSession {
+  id: string;
+  date: string;
+  workoutType: WorkoutType;
+  startTime: string;
+  endTime?: string;
+  exercises?: WorkoutExercise[]; // for push/pull/legs/plyometrics
+  cardioActivities?: CardioActivity[]; // for cardio
+  hiitRounds?: HIITRound[]; // for HIIT
+  totalDuration?: number; // in minutes
+  notes?: string;
+  completed: boolean;
+}
+
 export interface AppState {
   metrics: Metric[];
   exercises: Exercise[];
   exerciseCategories: ExerciseCategory[];
-  view: "dashboard" | "add-metric" | "progress" | "daily-sheet" | "exercises" | "calendar";
+  view: AppView;
   selectedMetricId?: string;
-} 
+  selectedWorkoutType?: WorkoutType;
+  currentWorkoutSession?: WorkoutSession;
+  workoutSessions: WorkoutSession[];
+}
+
+export type AppDispatch = (action: any) => void; 

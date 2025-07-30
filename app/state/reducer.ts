@@ -1,4 +1,4 @@
-import type { AppState, Metric, Exercise, ExerciseCategory } from '~/types';
+import type { AppState, Metric, Exercise, ExerciseCategory, WorkoutSession, WorkoutExercise, ExerciseSet, CardioActivity } from '~/types';
 
 // Reducer for state management
 export function appReducer(state: AppState, action: any): AppState {
@@ -65,7 +65,218 @@ export function appReducer(state: AppState, action: any): AppState {
         ...state, 
         metrics: action.metrics || state.metrics,
         exercises: action.exercises || state.exercises,
-        exerciseCategories: action.exerciseCategories || state.exerciseCategories
+        exerciseCategories: action.exerciseCategories || state.exerciseCategories,
+        workoutSessions: action.workoutSessions || state.workoutSessions
+      };
+    
+    case "SELECT_WORKOUT_TYPE":
+      return {
+        ...state,
+        selectedWorkoutType: action.workoutType,
+        view: "workout-active"
+      };
+    
+    case "START_WORKOUT_SESSION":
+      return {
+        ...state,
+        currentWorkoutSession: action.session
+      };
+    
+    case "ADD_EXERCISE_TO_SESSION":
+      if (!state.currentWorkoutSession) return state;
+      return {
+        ...state,
+        currentWorkoutSession: {
+          ...state.currentWorkoutSession,
+          exercises: [...(state.currentWorkoutSession.exercises || []), action.exercise]
+        }
+      };
+    
+    case "ADD_SET_TO_EXERCISE":
+      if (!state.currentWorkoutSession?.exercises) return state;
+      const updatedExercises = [...state.currentWorkoutSession.exercises];
+      if (updatedExercises[action.exerciseIndex]) {
+        updatedExercises[action.exerciseIndex] = {
+          ...updatedExercises[action.exerciseIndex],
+          sets: [...updatedExercises[action.exerciseIndex].sets, action.set]
+        };
+      }
+      return {
+        ...state,
+        currentWorkoutSession: {
+          ...state.currentWorkoutSession,
+          exercises: updatedExercises
+        }
+      };
+    
+    case "UPDATE_SET":
+      if (!state.currentWorkoutSession?.exercises) return state;
+      const exercisesWithUpdatedSet = [...state.currentWorkoutSession.exercises];
+      if (exercisesWithUpdatedSet[action.exerciseIndex]?.sets[action.setIndex]) {
+        exercisesWithUpdatedSet[action.exerciseIndex].sets[action.setIndex] = {
+          ...exercisesWithUpdatedSet[action.exerciseIndex].sets[action.setIndex],
+          ...action.updates
+        };
+      }
+      return {
+        ...state,
+        currentWorkoutSession: {
+          ...state.currentWorkoutSession,
+          exercises: exercisesWithUpdatedSet
+        }
+      };
+    
+    case "ADD_CARDIO_ACTIVITY":
+      if (!state.currentWorkoutSession) return state;
+      return {
+        ...state,
+        currentWorkoutSession: {
+          ...state.currentWorkoutSession,
+          cardioActivities: [...(state.currentWorkoutSession.cardioActivities || []), action.activity]
+        }
+      };
+    
+    case "UPDATE_CARDIO_ACTIVITY":
+      if (!state.currentWorkoutSession?.cardioActivities) return state;
+      const updatedActivities = [...state.currentWorkoutSession.cardioActivities];
+      if (updatedActivities[action.activityIndex]) {
+        updatedActivities[action.activityIndex] = {
+          ...updatedActivities[action.activityIndex],
+          ...action.updates
+        };
+      }
+      return {
+        ...state,
+        currentWorkoutSession: {
+          ...state.currentWorkoutSession,
+          cardioActivities: updatedActivities
+        }
+      };
+    
+    case "FINISH_WORKOUT_SESSION":
+      if (!state.currentWorkoutSession) return state;
+      
+      // Use manual times if set, otherwise calculate automatically
+      let finalEndTime = state.currentWorkoutSession.endTime;
+      let finalDuration = state.currentWorkoutSession.totalDuration;
+      
+      // If no manual end time, set to now
+      if (!finalEndTime) {
+        finalEndTime = new Date().toISOString();
+      }
+      
+      // If no manual duration, calculate from start/end times
+      if (!finalDuration && finalEndTime) {
+        finalDuration = Math.round(
+          (new Date(finalEndTime).getTime() - new Date(state.currentWorkoutSession.startTime).getTime()) / 1000 / 60
+        );
+      }
+      
+      // Ensure minimum duration
+      if (!finalDuration || finalDuration <= 0) {
+        finalDuration = 1;
+      }
+      
+      const finishedSession: WorkoutSession = {
+        ...state.currentWorkoutSession,
+        endTime: finalEndTime,
+        completed: true,
+        totalDuration: finalDuration
+      };
+      
+      // Check if we're editing an existing workout
+      const isEditing = state.workoutSessions.some(w => w.id === state.currentWorkoutSession!.id);
+      
+      return {
+        ...state,
+        workoutSessions: isEditing 
+          ? state.workoutSessions.map(w => w.id === finishedSession.id ? finishedSession : w)
+          : [...state.workoutSessions, finishedSession],
+        currentWorkoutSession: undefined,
+        selectedWorkoutType: undefined,
+        view: isEditing ? "daily-sheet" : "dashboard"
+      };
+    
+    case "EDIT_WORKOUT_SESSION":
+      const workoutToEdit = state.workoutSessions.find(w => w.id === action.workoutId);
+      if (!workoutToEdit) return state;
+      
+      return {
+        ...state,
+        currentWorkoutSession: { ...workoutToEdit },
+        selectedWorkoutType: workoutToEdit.workoutType,
+        view: "workout-active"
+      };
+    
+    case "UPDATE_WORKOUT_SESSION":
+      if (!state.currentWorkoutSession) return state;
+      return {
+        ...state,
+        currentWorkoutSession: {
+          ...state.currentWorkoutSession,
+          ...action.updates
+        }
+      };
+    
+    case "DELETE_WORKOUT_SESSION":
+      return {
+        ...state,
+        workoutSessions: state.workoutSessions.filter(w => w.id !== action.workoutId)
+      };
+    
+    case "REMOVE_EXERCISE_FROM_SESSION":
+      if (!state.currentWorkoutSession?.exercises) return state;
+      return {
+        ...state,
+        currentWorkoutSession: {
+          ...state.currentWorkoutSession,
+          exercises: state.currentWorkoutSession.exercises.filter((_, index) => index !== action.exerciseIndex)
+        }
+      };
+    
+    case "REMOVE_SET_FROM_EXERCISE":
+      if (!state.currentWorkoutSession?.exercises) return state;
+      const exercisesWithRemovedSet = [...state.currentWorkoutSession.exercises];
+      if (exercisesWithRemovedSet[action.exerciseIndex]) {
+        exercisesWithRemovedSet[action.exerciseIndex] = {
+          ...exercisesWithRemovedSet[action.exerciseIndex],
+          sets: exercisesWithRemovedSet[action.exerciseIndex].sets
+            .filter((_, index) => index !== action.setIndex)
+            .map((set, index) => ({ ...set, setNumber: index + 1 })) // Renumber sets
+        };
+      }
+      return {
+        ...state,
+        currentWorkoutSession: {
+          ...state.currentWorkoutSession,
+          exercises: exercisesWithRemovedSet
+        }
+      };
+    
+    case "REMOVE_CARDIO_ACTIVITY":
+      if (!state.currentWorkoutSession?.cardioActivities) return state;
+      return {
+        ...state,
+        currentWorkoutSession: {
+          ...state.currentWorkoutSession,
+          cardioActivities: state.currentWorkoutSession.cardioActivities.filter((_, index) => index !== action.activityIndex)
+        }
+      };
+    
+    case "CANCEL_WORKOUT_EDIT":
+      return {
+        ...state,
+        currentWorkoutSession: undefined,
+        selectedWorkoutType: undefined,
+        view: "daily-sheet"
+      };
+    
+    case "CANCEL_NEW_WORKOUT":
+      return {
+        ...state,
+        currentWorkoutSession: undefined,
+        selectedWorkoutType: undefined,
+        view: "dashboard"
       };
     
     default:

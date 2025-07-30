@@ -1,6 +1,7 @@
 import { useState } from "react";
-import type { AppState, Metric, Measurement } from "~/types";
+import type { AppState, Metric, Measurement, WorkoutSession } from "~/types";
 import { getLatestValue } from "~/utils/helpers";
+import { workoutTypes } from "~/data/defaults";
 
 interface CalendarViewProps {
   state: AppState;
@@ -19,18 +20,33 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
   const daysInMonth = lastDay.getDate();
   const startingDayOfWeek = firstDay.getDay();
 
-  // Create a map of dates to all measurements for that date
+  // Create a map of dates to all measurements and workouts for that date
   const createDailyDataMap = () => {
-    const dailyData = new Map<string, Array<{metric: Metric, measurement: Measurement}>>();
+    const dailyData = new Map<string, {
+      metrics: Array<{metric: Metric, measurement: Measurement}>,
+      workouts: WorkoutSession[]
+    }>();
     
+    // Add metrics data
     state.metrics.forEach(metric => {
       metric.measurements.forEach(measurement => {
         const dateStr = measurement.date;
         if (!dailyData.has(dateStr)) {
-          dailyData.set(dateStr, []);
+          dailyData.set(dateStr, { metrics: [], workouts: [] });
         }
-        dailyData.get(dateStr)!.push({ metric, measurement });
+        dailyData.get(dateStr)!.metrics.push({ metric, measurement });
       });
+    });
+    
+    // Add workout data
+    state.workoutSessions.forEach(workout => {
+      if (workout.completed) {
+        const dateStr = workout.date;
+        if (!dailyData.has(dateStr)) {
+          dailyData.set(dateStr, { metrics: [], workouts: [] });
+        }
+        dailyData.get(dateStr)!.workouts.push(workout);
+      }
     });
     
     return dailyData;
@@ -50,7 +66,7 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
   for (let day = 1; day <= daysInMonth; day++) {
     const date = new Date(currentYear, currentMonth, day);
     const dateStr = date.toISOString().split('T')[0];
-    const dayData = dailyDataMap.get(dateStr) || [];
+    const dayData = dailyDataMap.get(dateStr) || { metrics: [], workouts: [] };
     
     week.push({ date: dateStr, day, dayData });
     
@@ -84,6 +100,34 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
   };
 
   const today = new Date().toISOString().split('T')[0];
+
+  // Helper functions for workouts
+  const getWorkoutIcon = (workoutType: string) => {
+    const config = workoutTypes.find(wt => wt.id === workoutType);
+    return config?.icon || "🏋️";
+  };
+
+  const getWorkoutName = (workoutType: string) => {
+    const config = workoutTypes.find(wt => wt.id === workoutType);
+    return config?.name || workoutType;
+  };
+
+  const formatDuration = (minutes?: number) => {
+    if (!minutes) return "N/A";
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (hours > 0) {
+      return `${hours}h ${mins}min`;
+    }
+    return `${mins}min`;
+  };
+
+  const formatTime = (isoString: string) => {
+    return new Date(isoString).toLocaleTimeString('es-ES', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
 
   // Edit Day Modal Component
   const EditDayModal = () => {
@@ -127,7 +171,8 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
     };
 
     const selectedDate = new Date(selectedDay);
-    const dayData = dailyDataMap.get(selectedDay) || [];
+    const dayData = dailyDataMap.get(selectedDay) || { metrics: [], workouts: [] };
+    const dayWorkouts = dayData.workouts;
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -148,6 +193,183 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
               >
                 ✕
               </button>
+            </div>
+
+            {/* Workouts Section */}
+            <div className="mb-8">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-lg font-medium text-gray-900 dark:text-white flex items-center space-x-2">
+                  <span>🏋️</span>
+                  <span>Entrenamientos del Día</span>
+                  <span className="text-sm bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded-full">
+                    {dayWorkouts.length}
+                  </span>
+                </h4>
+                
+                {dayWorkouts.length > 0 && (
+                  <div className="text-right">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Tiempo total: {formatDuration(dayWorkouts.reduce((total, w) => total + (w.totalDuration || 0), 0))}
+                    </p>
+                    <p className="text-xs text-green-600 dark:text-green-400">
+                      {dayWorkouts.length} sesion{dayWorkouts.length !== 1 ? 'es' : ''} completada{dayWorkouts.length !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {dayWorkouts.length === 0 ? (
+                <div className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-6 text-center">
+                  <p className="text-gray-500 dark:text-gray-400 mb-3">
+                    No hay entrenamientos registrados para este día
+                  </p>
+                  <button
+                    onClick={() => {
+                      setShowEditModal(false);
+                      dispatch({ type: "SET_VIEW", view: "workout-selection" });
+                    }}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors text-sm"
+                  >
+                    Iniciar Entrenamiento
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {dayWorkouts.map((workout, index) => (
+                    <div key={workout.id} className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center space-x-3">
+                          <span className="text-2xl">{getWorkoutIcon(workout.workoutType)}</span>
+                          <div>
+                            <h5 className="font-semibold text-gray-900 dark:text-white">
+                              {getWorkoutName(workout.workoutType)} Workout
+                            </h5>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              {formatTime(workout.startTime)} 
+                              {workout.endTime && ` - ${formatTime(workout.endTime)}`}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-3">
+                          <div className="text-right">
+                            <p className="text-sm font-medium text-gray-900 dark:text-white">
+                              {formatDuration(workout.totalDuration)}
+                            </p>
+                            <p className="text-xs text-green-600 dark:text-green-400">
+                              ✓ Completado
+                            </p>
+                          </div>
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => {
+                                setShowEditModal(false);
+                                dispatch({ type: "EDIT_WORKOUT_SESSION", workoutId: workout.id });
+                              }}
+                              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-lg transition-colors"
+                              title="Editar entrenamiento"
+                            >
+                              ✏️ Editar
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm('¿Estás seguro de que quieres eliminar este entrenamiento?')) {
+                                  dispatch({ type: "DELETE_WORKOUT_SESSION", workoutId: workout.id });
+                                }
+                              }}
+                              className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded-lg transition-colors"
+                              title="Eliminar entrenamiento"
+                            >
+                              🗑️ Eliminar
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Workout Details - Simplified for modal */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        {/* Strength workouts */}
+                        {workout.exercises && workout.exercises.length > 0 && (
+                          <div>
+                            <p className="font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              Ejercicios: {workout.exercises.length}
+                            </p>
+                            <div className="space-y-1">
+                              {workout.exercises.slice(0, 2).map((exercise, idx) => (
+                                <p key={idx} className="text-gray-600 dark:text-gray-400 text-xs">
+                                  • {exercise.exerciseName} ({exercise.sets.length} sets)
+                                </p>
+                              ))}
+                              {workout.exercises.length > 2 && (
+                                <p className="text-gray-500 dark:text-gray-500 text-xs">
+                                  + {workout.exercises.length - 2} más...
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Cardio workouts */}
+                        {workout.cardioActivities && workout.cardioActivities.length > 0 && (
+                          <div>
+                            <p className="font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              Actividades: {workout.cardioActivities.length}
+                            </p>
+                            <div className="space-y-1">
+                              {workout.cardioActivities.slice(0, 2).map((activity, idx) => (
+                                <p key={idx} className="text-gray-600 dark:text-gray-400 text-xs">
+                                  • {activity.name}
+                                  {activity.duration && ` (${activity.duration}min)`}
+                                  {activity.distance && ` - ${activity.distance}km`}
+                                </p>
+                              ))}
+                              {workout.cardioActivities.length > 2 && (
+                                <p className="text-gray-500 dark:text-gray-500 text-xs">
+                                  + {workout.cardioActivities.length - 2} más...
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Total volume */}
+                        {workout.exercises && workout.exercises.length > 0 && (
+                          <div>
+                            <p className="font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              Volumen Total
+                            </p>
+                            <p className="text-gray-600 dark:text-gray-400 text-xs">
+                              {workout.exercises.reduce((total, ex) => total + ex.sets.length, 0)} sets
+                            </p>
+                            <p className="text-gray-600 dark:text-gray-400 text-xs">
+                              {workout.exercises.reduce((total, ex) => 
+                                total + ex.sets.reduce((setTotal, set) => 
+                                  setTotal + (set.weight || 0) * (set.reps || 0), 0
+                                ), 0
+                              ).toFixed(0)} kg total
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      {workout.notes && (
+                        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            📝 {workout.notes}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Metrics Section */}
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+              <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4 flex items-center space-x-2">
+                <span>📊</span>
+                <span>Métricas del Día</span>
+              </h4>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -254,16 +476,24 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
         <h5 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
           📊 Estadísticas del Mes
         </h5>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {(() => {
             const monthDates = Array.from({ length: daysInMonth }, (_, i) => {
               const date = new Date(currentYear, currentMonth, i + 1);
               return date.toISOString().split('T')[0];
             });
             
-            const daysWithData = monthDates.filter(date => dailyDataMap.has(date)).length;
+            const daysWithData = monthDates.filter(date => {
+              const dayData = dailyDataMap.get(date);
+              return dayData && (dayData.metrics.length > 0 || dayData.workouts.length > 0);
+            }).length;
             const totalMeasurements = monthDates.reduce((total, date) => {
-              return total + (dailyDataMap.get(date)?.length || 0);
+              const dayData = dailyDataMap.get(date);
+              return total + (dayData?.metrics.length || 0);
+            }, 0);
+            const totalWorkouts = monthDates.reduce((total, date) => {
+              const dayData = dailyDataMap.get(date);
+              return total + (dayData?.workouts.length || 0);
             }, 0);
             
             return (
@@ -285,11 +515,19 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
                   </p>
                 </div>
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">
-                    {daysWithData > 0 ? (totalMeasurements / daysWithData).toFixed(1) : '0'}
+                  <p className="text-3xl font-bold text-orange-600 dark:text-orange-400">
+                    {totalWorkouts}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Promedio por día
+                    Total entrenamientos
+                  </p>
+                </div>
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">
+                    {daysWithData > 0 ? ((totalMeasurements + totalWorkouts) / daysWithData).toFixed(1) : '0'}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Promedio actividades/día
                   </p>
                 </div>
               </>
@@ -339,9 +577,11 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
                 return <div key={`${weekIndex}-${dayIndex}`} className="aspect-square" />;
               }
               
-              const hasData = day.dayData.length > 0;
+              const hasData = day.dayData.metrics.length > 0 || day.dayData.workouts.length > 0;
               const isToday = day.date === today;
-              const metricsCount = day.dayData.length;
+              const metricsCount = day.dayData.metrics.length;
+              const workoutsCount = day.dayData.workouts.length;
+              const totalItems = metricsCount + workoutsCount;
               const totalMetrics = state.metrics.length;
               const completionPercentage = totalMetrics > 0 ? (metricsCount / totalMetrics) * 100 : 0;
               
@@ -361,7 +601,7 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
                     ${isToday ? 'ring-3 ring-orange-500 ring-opacity-60' : ''}
                     hover:shadow-lg transition-all transform hover:scale-105
                   `}
-                  title={`${day.day} - ${hasData ? `${metricsCount}/${totalMetrics} métricas registradas` : 'Click para agregar datos'}`}
+                  title={`${day.day} - ${hasData ? `${metricsCount}/${totalMetrics} métricas, ${workoutsCount} entrenamientos` : 'Click para agregar datos'}`}
                 >
                   <span className={`text-lg font-bold ${hasData ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-600'}`}>
                     {day.day}
@@ -369,13 +609,20 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
                   
                   {hasData && (
                     <div className="flex flex-wrap gap-1 mt-1 justify-center">
-                      {day.dayData.slice(0, 3).map((data, idx) => (
-                        <span key={idx} className="text-xs">
+                      {/* Show workout icons first */}
+                      {day.dayData.workouts.slice(0, 2).map((workout, idx) => (
+                        <span key={`workout-${idx}`} className="text-xs">
+                          {getWorkoutIcon(workout.workoutType)}
+                        </span>
+                      ))}
+                      {/* Then show metric icons */}
+                      {day.dayData.metrics.slice(0, 2).map((data, idx) => (
+                        <span key={`metric-${idx}`} className="text-xs">
                           {data.metric.icon}
                         </span>
                       ))}
-                      {day.dayData.length > 3 && (
-                        <span className="text-xs text-gray-600">+{day.dayData.length - 3}</span>
+                      {totalItems > 4 && (
+                        <span className="text-xs text-gray-600">+{totalItems - 4}</span>
                       )}
                     </div>
                   )}

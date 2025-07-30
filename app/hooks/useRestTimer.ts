@@ -28,6 +28,9 @@ export function useRestTimer() {
     restIntervalRef.current = setInterval(() => {
       setRestTime((prev) => {
         if (prev <= 1) {
+          if (restIntervalRef.current) {
+            clearInterval(restIntervalRef.current);
+          }
           setIsRestTimerActive(false);
           // Play notification sound
           if (audioRef.current) {
@@ -53,6 +56,10 @@ export function useRestTimer() {
     if (restIntervalRef.current) {
       clearInterval(restIntervalRef.current);
     }
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
   }, []);
 
   const pauseRestTimer = useCallback(() => {
@@ -68,6 +75,9 @@ export function useRestTimer() {
       restIntervalRef.current = setInterval(() => {
         setRestTime((prev) => {
           if (prev <= 1) {
+            if (restIntervalRef.current) {
+              clearInterval(restIntervalRef.current);
+            }
             setIsRestTimerActive(false);
             if (audioRef.current) {
               audioRef.current.play().catch(console.error);

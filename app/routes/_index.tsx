@@ -2,12 +2,14 @@ import type { MetaFunction } from "@remix-run/node";
 import { useReducer, useEffect } from "react";
 import { appReducer } from "~/state/reducer";
 import { defaultMetrics, defaultExercises, defaultExerciseCategories } from "~/data/defaults";
-import { useRestTimer } from "~/hooks/useRestTimer";
 import { DailySheetForm } from "~/components/DailySheetForm";
 import { AddMetricForm } from "~/components/AddMetricForm";
 import { ExercisesView } from "~/components/ExercisesView";
 import { CalendarView } from "~/components/CalendarView";
 import { ProgressView } from "~/components/ProgressView";
+import { TimerView } from "~/components/TimerView";
+import { WorkoutTypeSelection } from "~/components/WorkoutTypeSelection";
+import { WorkoutActive } from "~/components/WorkoutActive";
 import { getLatestValue, getPreviousValue, getTrend, getTrendIcon, getTrendColor, getColorClasses } from "~/utils/helpers";
 
 export const meta: MetaFunction = () => {
@@ -23,20 +25,8 @@ export default function Dashboard() {
     exercises: defaultExercises,
     exerciseCategories: defaultExerciseCategories,
     view: "dashboard",
+    workoutSessions: [],
   });
-
-  const {
-    restTime,
-    isRestTimerActive,
-    restDuration,
-    setRestDuration,
-    startRestTimer,
-    stopRestTimer,
-    pauseRestTimer,
-    resumeRestTimer,
-    formatTime,
-    audioRef
-  } = useRestTimer();
 
   // localStorage persistence
   useEffect(() => {
@@ -48,7 +38,8 @@ export default function Dashboard() {
           type: "LOAD_DATA",
           metrics: parsed.metrics,
           exercises: parsed.exercises,
-          exerciseCategories: parsed.exerciseCategories
+          exerciseCategories: parsed.exerciseCategories,
+          workoutSessions: parsed.workoutSessions || []
         });
       } catch (e) {
         console.error("Error loading saved data:", e);
@@ -60,10 +51,11 @@ export default function Dashboard() {
     const dataToSave = {
       metrics: state.metrics,
       exercises: state.exercises,
-      exerciseCategories: state.exerciseCategories
+      exerciseCategories: state.exerciseCategories,
+      workoutSessions: state.workoutSessions
     };
     localStorage.setItem("gym-tracker-data", JSON.stringify(dataToSave));
-  }, [state.metrics, state.exercises, state.exerciseCategories]);
+  }, [state.metrics, state.exercises, state.exerciseCategories, state.workoutSessions]);
 
   // Main render based on current view
   if (state.view === "daily-sheet") {
@@ -106,6 +98,22 @@ export default function Dashboard() {
     );
   }
 
+  if (state.view === "timer") {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <TimerView dispatch={dispatch} />
+      </div>
+    );
+  }
+
+  if (state.view === "workout-selection") {
+    return <WorkoutTypeSelection dispatch={dispatch} />;
+  }
+
+  if (state.view === "workout-active") {
+    return <WorkoutActive state={state} dispatch={dispatch} />;
+  }
+
   // Dashboard view
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -141,103 +149,6 @@ export default function Dashboard() {
           <p className="text-gray-600 dark:text-gray-400">
             Monitorea tu progreso y alcanza tus objetivos de fitness
           </p>
-        </div>
-
-        {/* Rest Timer */}
-        <div className="mb-8">
-          <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl p-6 text-white">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold flex items-center space-x-2">
-                <span>⏱️</span>
-                <span>Timer de Descanso</span>
-              </h2>
-              
-              <div className="flex items-center space-x-3">
-                <select
-                  value={restDuration}
-                  onChange={(e) => setRestDuration(Number(e.target.value))}
-                  className="px-3 py-1 bg-white/20 text-white border border-white/30 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-white/50"
-                  disabled={isRestTimerActive}
-                >
-                  <option value={30}>30s</option>
-                  <option value={60}>1min</option>
-                  <option value={90}>1:30min</option>
-                  <option value={120}>2min</option>
-                  <option value={180}>3min</option>
-                  <option value={300}>5min</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <div className="text-center">
-                  <div className="text-4xl font-mono font-bold">
-                    {formatTime(restTime)}
-                  </div>
-                  <div className="text-sm opacity-80">
-                    {restTime === 0 ? 'Listo para entrenar' : 
-                     isRestTimerActive ? 'Descansando...' : 'Pausado'}
-                  </div>
-                </div>
-                
-                {restTime > 0 && (
-                  <div className="flex-1 max-w-xs">
-                    <div className="w-full bg-white/20 rounded-full h-2">
-                      <div 
-                        className="bg-white h-2 rounded-full transition-all duration-1000"
-                        style={{ 
-                          width: `${100 - (restTime / restDuration) * 100}%` 
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-center space-x-2">
-                {!isRestTimerActive && restTime === 0 && (
-                  <button
-                    onClick={startRestTimer}
-                    className="flex items-center space-x-2 bg-white/20 hover:bg-white/30 text-white font-medium py-2 px-4 rounded-lg transition-colors"
-                  >
-                    <span>▶️</span>
-                    <span>Iniciar</span>
-                  </button>
-                )}
-                
-                {isRestTimerActive && (
-                  <button
-                    onClick={pauseRestTimer}
-                    className="flex items-center space-x-2 bg-white/20 hover:bg-white/30 text-white font-medium py-2 px-4 rounded-lg transition-colors"
-                  >
-                    <span>⏸️</span>
-                    <span>Pausar</span>
-                  </button>
-                )}
-                
-                {!isRestTimerActive && restTime > 0 && (
-                  <button
-                    onClick={resumeRestTimer}
-                    className="flex items-center space-x-2 bg-white/20 hover:bg-white/30 text-white font-medium py-2 px-4 rounded-lg transition-colors"
-                  >
-                    <span>▶️</span>
-                    <span>Reanudar</span>
-                  </button>
-                )}
-                
-                {restTime > 0 && (
-                  <button
-                    onClick={stopRestTimer}
-                    className="flex items-center space-x-2 bg-red-500/80 hover:bg-red-500 text-white font-medium py-2 px-4 rounded-lg transition-colors"
-                  >
-                    <span>⏹️</span>
-                    <span>Parar</span>
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Stats Overview */}
@@ -301,6 +212,18 @@ export default function Dashboard() {
           })}
         </div>
 
+        {/* Primary Action - Start Workout */}
+        <div className="mb-8">
+          <button
+            onClick={() => dispatch({ type: "SET_VIEW", view: "workout-selection" })}
+            className="w-full sm:w-auto mx-auto flex items-center justify-center space-x-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold py-6 px-8 rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
+          >
+            <span className="text-2xl">🏋️</span>
+            <span className="text-xl">Iniciar Entrenamiento</span>
+            <span className="text-lg">→</span>
+          </button>
+        </div>
+
         {/* Action Buttons */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <button
@@ -319,6 +242,14 @@ export default function Dashboard() {
             <span>Calendario</span>
           </button>
           
+          <button
+            onClick={() => dispatch({ type: "SET_VIEW", view: "timer" })}
+            className="flex items-center justify-center space-x-2 bg-yellow-500 hover:bg-yellow-600 text-white font-medium py-4 px-6 rounded-lg transition-colors"
+          >
+            <span className="text-lg">⏱️</span>
+            <span>Timer</span>
+          </button>
+
           <button 
             onClick={() => dispatch({ type: "SET_VIEW", view: "exercises" })}
             className="flex items-center justify-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white font-medium py-4 px-6 rounded-lg transition-colors"
@@ -337,7 +268,7 @@ export default function Dashboard() {
         </div>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           {[
             { 
               label: "Total mediciones", 
@@ -345,6 +276,11 @@ export default function Dashboard() {
               icon: "📊" 
             },
             { label: "Métricas activas", value: state.metrics.length.toString(), icon: "🎯" },
+            { 
+              label: "Entrenamientos", 
+              value: state.workoutSessions.length.toString(), 
+              icon: "🏋️" 
+            },
             { 
               label: "Última medición", 
               value: state.metrics
@@ -376,14 +312,6 @@ export default function Dashboard() {
           ))}
         </div>
       </main>
-
-      {/* Audio element for timer notifications */}
-      <audio 
-        ref={audioRef}
-        preload="auto"
-      >
-        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmAYBzuU2vi2dyMGK3vI7NiQQAoU" type="audio/wav" />
-      </audio>
     </div>
   );
 }

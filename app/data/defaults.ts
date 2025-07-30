@@ -1,4 +1,4 @@
-import type { Metric, ExerciseCategory, Exercise } from '~/types';
+import type { Metric, ExerciseCategory, Exercise, WorkoutTypeConfig } from '~/types';
 
 // Initial data
 export const defaultMetrics: Metric[] = [
@@ -57,7 +57,8 @@ export const defaultExerciseCategories: ExerciseCategory[] = [
   { id: "push-upper", name: "Push Upper", day: "Lunes" },
   { id: "pull-upper", name: "Pull Upper", day: "Miércoles" },
   { id: "legs-glutes", name: "Legs & Glutes", day: "Jueves" },
-  { id: "hiit-plio", name: "HIIT / Pliometría", day: "Sábado" }
+  { id: "hiit-plio", name: "HIIT / Pliometría", day: "Sábado" },
+  { id: "cardio", name: "Cardio", day: "Flexible" }
 ];
 
 // Initial exercises
@@ -95,5 +96,67 @@ export const defaultExercises: Exercise[] = [
   { id: "med-ball-chest-pass", name: "Med-Ball Chest Pass (de pie)", category: "hiit-plio", sets: "4", reps: "8" },
   { id: "box-jump", name: "Box Jump", category: "hiit-plio", sets: "4", reps: "5" },
   { id: "depth-jump", name: "Depth Jump", category: "hiit-plio", sets: "3", reps: "5" },
-  { id: "explosive-bulgarian", name: "Explosive Bulgarian Split", category: "hiit-plio", sets: "3", reps: "6", notes: "c/pierna" }
+  { id: "explosive-bulgarian", name: "Explosive Bulgarian Split", category: "hiit-plio", sets: "3", reps: "6", notes: "c/pierna" },
+
+  // Cardio exercises
+  { id: "treadmill-run", name: "Cinta de Correr", category: "cardio" },
+  { id: "stationary-bike", name: "Bicicleta Estática", category: "cardio" },
+  { id: "elliptical", name: "Elíptica", category: "cardio" },
+  { id: "rowing-machine", name: "Máquina de Remo", category: "cardio" },
+  { id: "outdoor-running", name: "Correr al Aire Libre", category: "cardio" },
+  { id: "cycling", name: "Ciclismo", category: "cardio" },
+  { id: "swimming", name: "Natación", category: "cardio" },
+  { id: "stair-climber", name: "Escaladora", category: "cardio" }
+];
+
+// Workout type configurations
+export const workoutTypes: WorkoutTypeConfig[] = [
+  {
+    id: "push",
+    name: "Push",
+    description: "Entrenamiento de empuje - Pecho, hombros y tríceps",
+    icon: "💪",
+    color: "red",
+    estimatedDuration: "60-75 min"
+  },
+  {
+    id: "pull",
+    name: "Pull", 
+    description: "Entrenamiento de tracción - Espalda y bíceps",
+    icon: "🎯",
+    color: "blue",
+    estimatedDuration: "60-75 min"
+  },
+  {
+    id: "legs",
+    name: "Legs",
+    description: "Entrenamiento de piernas y glúteos",
+    icon: "🦵",
+    color: "green",
+    estimatedDuration: "75-90 min"
+  },
+  {
+    id: "cardio",
+    name: "Cardio",
+    description: "Entrenamiento cardiovascular",
+    icon: "❤️",
+    color: "pink",
+    estimatedDuration: "30-45 min"
+  },
+  {
+    id: "hiit",
+    name: "HIIT",
+    description: "Entrenamiento de alta intensidad por intervalos",
+    icon: "⚡",
+    color: "yellow",
+    estimatedDuration: "20-30 min"
+  },
+  {
+    id: "plyometrics",
+    name: "Pliometría",
+    description: "Entrenamiento de fuerza explosiva y potencia",
+    icon: "🚀",
+    color: "purple",
+    estimatedDuration: "30-40 min"
+  }
 ]; 
