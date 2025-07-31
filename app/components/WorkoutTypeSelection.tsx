@@ -1,11 +1,18 @@
-import type { AppDispatch, WorkoutTypeConfig } from "~/types";
+// app/components/WorkoutTypeSelection.tsx
+import type { AppDispatch, WorkoutType, WorkoutTypeConfig, WorkoutTemplate } from "~/types";
 import { workoutTypes } from "~/data/defaults";
+import { workoutTemplates } from "~/data/templates";
+import { useState } from "react";
 
 interface WorkoutTypeSelectionProps {
   dispatch: AppDispatch;
+  templates: WorkoutTemplate[];
 }
 
-export function WorkoutTypeSelection({ dispatch }: WorkoutTypeSelectionProps) {
+export function WorkoutTypeSelection({ dispatch, templates }: WorkoutTypeSelectionProps) {
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [selectedWorkoutType, setSelectedWorkoutType] = useState<WorkoutTypeConfig | null>(null);
+
   const getGradientClasses = (color: string) => {
     const gradientMap = {
       red: "from-red-500 to-pink-600",
@@ -19,10 +26,32 @@ export function WorkoutTypeSelection({ dispatch }: WorkoutTypeSelectionProps) {
   };
 
   const handleWorkoutTypeSelect = (workoutType: WorkoutTypeConfig) => {
-    dispatch({ 
-      type: "SELECT_WORKOUT_TYPE", 
-      workoutType: workoutType.id 
-    });
+    setSelectedWorkoutType(workoutType);
+    setShowTemplateModal(true);
+  };
+
+  const handleStartWithTemplate = (templateId: string) => {
+    const template = templates.find(t => t.id === templateId);
+    if (template && selectedWorkoutType) {
+      dispatch({
+        type: "START_WORKOUT_FROM_TEMPLATE",
+        payload: {
+          workoutType: selectedWorkoutType.id,
+          exercises: template.exercises,
+        },
+      });
+    }
+    setShowTemplateModal(false);
+  };
+
+  const handleStartEmpty = () => {
+    if (selectedWorkoutType) {
+      dispatch({
+        type: "SELECT_WORKOUT_TYPE",
+        workoutType: selectedWorkoutType.id
+      });
+    }
+    setShowTemplateModal(false);
   };
 
   return (
@@ -132,6 +161,135 @@ export function WorkoutTypeSelection({ dispatch }: WorkoutTypeSelectionProps) {
           </div>
         </div>
       </main>
+
+      {/* Template Selection Modal */}
+      {showTemplateModal && selectedWorkoutType && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+                <span className="text-3xl">{selectedWorkoutType.icon}</span>
+                {selectedWorkoutType.name}
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400 mt-1">¿Cómo quieres empezar tu entrenamiento?</p>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="space-y-4">
+                {/* Start Empty Option */}
+                <button
+                  onClick={handleStartEmpty}
+                  className="w-full p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200 text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
+                      <svg className="w-6 h-6 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900 dark:text-white">Empezar vacío</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Crea tu rutina desde cero</p>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Template Options */}
+                {templates
+                  .filter(template => template.workoutType === selectedWorkoutType.id)
+                  .length > 0 && (
+                  <>
+                    <div className="flex items-center gap-3 my-4">
+                      <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700"></div>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">O usa una plantilla</span>
+                      <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    
+                    {templates
+                      .filter(template => template.workoutType === selectedWorkoutType.id)
+                      .map(template => (
+                        <button
+                          key={template.id}
+                          onClick={() => handleStartWithTemplate(template.id)}
+                          className="w-full p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors duration-200 text-left border border-blue-200 dark:border-blue-800"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/50 rounded-full flex items-center justify-center">
+                              <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                              </svg>
+                            </div>
+                            <div className="flex-1">
+                              <h3 className="font-semibold text-gray-900 dark:text-white">{template.name}</h3>
+                              <p className="text-sm text-gray-600 dark:text-gray-400">
+                                {template.exercises.length} ejercicio{template.exercises.length !== 1 ? 's' : ''}
+                              </p>
+                              {template.exercises.length > 0 && (
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                  {template.exercises.slice(0, 3).map(ex => ex.exerciseName).join(', ')}
+                                  {template.exercises.length > 3 && '...'}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                  </>
+                )}
+                
+                {/* Default Templates (if any) */}
+                {Object.keys(workoutTemplates).includes(selectedWorkoutType.id) && (
+                  <>
+                    <div className="flex items-center gap-3 my-4">
+                      <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700"></div>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Plantillas predeterminadas</span>
+                      <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    
+                    <button
+                      onClick={() => {
+                        const template = workoutTemplates[selectedWorkoutType.id as keyof typeof workoutTemplates];
+                        if (template) {
+                          dispatch({
+                            type: "START_WORKOUT_FROM_TEMPLATE",
+                            payload: {
+                              workoutType: selectedWorkoutType.id,
+                              exercises: template,
+                            },
+                          });
+                          setShowTemplateModal(false);
+                        }
+                      }}
+                      className="w-full p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors duration-200 text-left border border-purple-200 dark:border-purple-800"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/50 rounded-full flex items-center justify-center">
+                          <svg className="w-6 h-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-900 dark:text-white">Plantilla {selectedWorkoutType.name}</h3>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">Rutina recomendada por expertos</p>
+                        </div>
+                      </div>
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+            
+            <div className="p-6 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => setShowTemplateModal(false)}
+                className="w-full px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors duration-200"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

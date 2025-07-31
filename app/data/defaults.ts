@@ -54,11 +54,9 @@ export const defaultMetrics: Metric[] = [
 
 // Initial exercise categories
 export const defaultExerciseCategories: ExerciseCategory[] = [
-  { id: "push-upper", name: "Push Upper", day: "Lunes" },
-  { id: "pull-upper", name: "Pull Upper", day: "Miércoles" },
-  { id: "legs-glutes", name: "Legs & Glutes", day: "Jueves" },
-  { id: "hiit-plio", name: "HIIT / Pliometría", day: "Sábado" },
-  { id: "cardio", name: "Cardio", day: "Flexible" }
+  { id: "push-upper", name: "Push Upper" },
+  { id: "pull-upper", name: "Pull Upper" },
+  { id: "legs-glutes", name: "Legs & Glutes" }
 ];
 
 // Initial exercises
@@ -90,23 +88,7 @@ export const defaultExercises: Exercise[] = [
   { id: "leg-extension", name: "Leg Extension", category: "legs-glutes", sets: "2", reps: "15" },
   { id: "lying-leg-curl", name: "Lying Leg Curl", category: "legs-glutes", sets: "2", reps: "15" },
   { id: "machine-abductor", name: "Machine Abductor", category: "legs-glutes", sets: "2", reps: "15" },
-  { id: "hollow-body-hold", name: "Hollow Body Hold", category: "legs-glutes", sets: "3", reps: "20 s" },
-
-  // HIIT / Pliometría (Sábado)
-  { id: "med-ball-chest-pass", name: "Med-Ball Chest Pass (de pie)", category: "hiit-plio", sets: "4", reps: "8" },
-  { id: "box-jump", name: "Box Jump", category: "hiit-plio", sets: "4", reps: "5" },
-  { id: "depth-jump", name: "Depth Jump", category: "hiit-plio", sets: "3", reps: "5" },
-  { id: "explosive-bulgarian", name: "Explosive Bulgarian Split", category: "hiit-plio", sets: "3", reps: "6", notes: "c/pierna" },
-
-  // Cardio exercises
-  { id: "treadmill-run", name: "Cinta de Correr", category: "cardio" },
-  { id: "stationary-bike", name: "Bicicleta Estática", category: "cardio" },
-  { id: "elliptical", name: "Elíptica", category: "cardio" },
-  { id: "rowing-machine", name: "Máquina de Remo", category: "cardio" },
-  { id: "outdoor-running", name: "Correr al Aire Libre", category: "cardio" },
-  { id: "cycling", name: "Ciclismo", category: "cardio" },
-  { id: "swimming", name: "Natación", category: "cardio" },
-  { id: "stair-climber", name: "Escaladora", category: "cardio" }
+  { id: "hollow-body-hold", name: "Hollow Body Hold", category: "legs-glutes", sets: "3", reps: "20 s" }
 ];
 
 // Workout type configurations
@@ -136,22 +118,6 @@ export const workoutTypes: WorkoutTypeConfig[] = [
     estimatedDuration: "75-90 min"
   },
   {
-    id: "cardio",
-    name: "Cardio",
-    description: "Entrenamiento cardiovascular",
-    icon: "❤️",
-    color: "pink",
-    estimatedDuration: "30-45 min"
-  },
-  {
-    id: "hiit",
-    name: "HIIT",
-    description: "Entrenamiento de alta intensidad por intervalos",
-    icon: "⚡",
-    color: "yellow",
-    estimatedDuration: "20-30 min"
-  },
-  {
     id: "plyometrics",
     name: "Pliometría",
     description: "Entrenamiento de fuerza explosiva y potencia",
@@ -159,4 +125,4 @@ export const workoutTypes: WorkoutTypeConfig[] = [
     color: "purple",
     estimatedDuration: "30-40 min"
   }
-]; 
+];

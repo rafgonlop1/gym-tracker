@@ -11,14 +11,14 @@ export interface Metric {
   unit: string;
   icon: string;
   color: string;
-  targetType: "increase" | "decrease";
+  targetType: "increase" | "decrease" | "lower" | "higher";
   target?: number;
   measurements: Measurement[];
 }
 
 export interface Exercise {
   id: string;
-  name: string;
+  name:string;
   category: string;
   sets?: string;
   reps?: string;
@@ -32,9 +32,9 @@ export interface ExerciseCategory {
   day?: string;
 }
 
-export type AppView = "dashboard" | "daily-sheet" | "add-metric" | "exercises" | "calendar" | "progress" | "timer" | "workout-selection" | "workout-active";
+export type AppView = "dashboard" | "daily-sheet" | "add-metric" | "exercises" | "calendar" | "progress" | "timer" | "workout-selection" | "workout-active" | "templates";
 
-export type WorkoutType = "push" | "pull" | "legs" | "cardio" | "hiit" | "plyometrics";
+export type WorkoutType = "push" | "pull" | "legs" | "plyometrics";
 
 export interface WorkoutTypeConfig {
   id: WorkoutType;
@@ -126,6 +126,15 @@ export interface DailyPhotos {
   photos: DailyPhoto[];
 }
 
+export interface WorkoutTemplate {
+  id: string;
+  name: string;
+  workoutType: WorkoutType;
+  exercises: WorkoutExercise[];
+  description?: string;
+}
+
+
 export interface AppState {
   metrics: Metric[];
   exercises: Exercise[];
@@ -137,6 +146,7 @@ export interface AppState {
   currentWorkoutSession?: WorkoutSession;
   workoutSessions: WorkoutSession[];
   dailyPhotos: DailyPhotos[];
+  templates: WorkoutTemplate[];
 }
 
-export type AppDispatch = (action: any) => void; 
+export type AppDispatch = (action: any) => void;

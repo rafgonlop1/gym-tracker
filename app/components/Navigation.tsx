@@ -1,3 +1,4 @@
+// app/components/Navigation.tsx
 import { useState } from "react";
 import { AppView, AppDispatch } from "~/types";
 
@@ -24,6 +25,7 @@ export function Navigation({ currentView, dispatch, metricsCount, workoutsCount,
     { id: "calendar", label: "Calendario", icon: "📅", color: "purple" },
     { id: "progress", label: "Progreso", icon: "📈", color: "orange" },
     { id: "exercises", label: "Ejercicios", icon: "💪", color: "indigo" },
+    { id: "templates", label: "Plantillas", icon: "📄", color: "pink" },
     { id: "timer", label: "Timer", icon: "⏱️", color: "yellow" },
   ];
 

@@ -1,7 +1,9 @@
+// app/routes/_index.tsx
 import type { MetaFunction } from "@remix-run/node";
 import { useReducer, useEffect, useState } from "react";
 import { appReducer } from "~/state/reducer";
 import { defaultMetrics, defaultExercises, defaultExerciseCategories, workoutTypes } from "~/data/defaults";
+import { workoutTemplates } from "~/data/templates";
 import { DailySheetForm } from "~/components/DailySheetForm";
 import { AddMetricForm } from "~/components/AddMetricForm";
 import { ExercisesView } from "~/components/ExercisesView";
@@ -12,7 +14,9 @@ import { WorkoutTypeSelection } from "~/components/WorkoutTypeSelection";
 import { WorkoutActive } from "~/components/WorkoutActive";
 import { Navigation } from "~/components/Navigation";
 import { ViewTransition } from "~/components/ViewTransition";
+import { TemplateManager } from "~/components/TemplateManager";
 import { getLatestValue, getPreviousValue, getTrend, getTrendIcon, getTrendColor, getColorClasses } from "~/utils/helpers";
+import { v4 as uuidv4 } from 'uuid';
 
 export const meta: MetaFunction = () => {
   return [
@@ -29,6 +33,12 @@ export default function Dashboard() {
     view: "dashboard",
     workoutSessions: [],
     dailyPhotos: [],
+    templates: [
+      { id: uuidv4(), name: "Push Upper", workoutType: "push", exercises: workoutTemplates.push },
+      { id: uuidv4(), name: "Pull Upper", workoutType: "pull", exercises: workoutTemplates.pull },
+      { id: uuidv4(), name: "Legs", workoutType: "legs", exercises: workoutTemplates.legs },
+      { id: uuidv4(), name: "Plyometrics", workoutType: "plyometrics", exercises: workoutTemplates.plyometrics },
+    ],
   });
   
   const [isNavCollapsed, setIsNavCollapsed] = useState(false);
@@ -105,7 +115,8 @@ export default function Dashboard() {
           exercises: parsed.exercises,
           exerciseCategories: parsed.exerciseCategories,
           workoutSessions: parsed.workoutSessions || [],
-          dailyPhotos: parsed.dailyPhotos || []
+          dailyPhotos: parsed.dailyPhotos || [],
+          templates: parsed.templates || [],
         });
       } catch (e) {
         console.error("Error loading saved data:", e);
@@ -119,10 +130,11 @@ export default function Dashboard() {
       exercises: state.exercises,
       exerciseCategories: state.exerciseCategories,
       workoutSessions: state.workoutSessions,
-      dailyPhotos: state.dailyPhotos
+      dailyPhotos: state.dailyPhotos,
+      templates: state.templates,
     };
     localStorage.setItem("gym-tracker-data", JSON.stringify(dataToSave));
-  }, [state.metrics, state.exercises, state.exerciseCategories, state.workoutSessions, state.dailyPhotos]);
+  }, [state.metrics, state.exercises, state.exerciseCategories, state.workoutSessions, state.dailyPhotos, state.templates]);
 
   // Layout with navigation
   const isFullScreenView = false; // Todas las vistas ahora tienen navegación
@@ -168,13 +180,19 @@ export default function Dashboard() {
       case "workout-selection":
         return (
           <ViewTransition>
-            <WorkoutTypeSelection dispatch={dispatch} />
+            <WorkoutTypeSelection dispatch={dispatch} templates={state.templates} />
           </ViewTransition>
         );
       case "workout-active":
         return (
           <ViewTransition>
             <WorkoutActive state={state} dispatch={dispatch} />
+          </ViewTransition>
+        );
+      case "templates":
+        return (
+          <ViewTransition>
+            <TemplateManager templates={state.templates} dispatch={dispatch} />
           </ViewTransition>
         );
       default:

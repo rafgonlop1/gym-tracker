@@ -1,4 +1,6 @@
-import type { AppState, Metric, Exercise, ExerciseCategory, WorkoutSession, WorkoutExercise, ExerciseSet, CardioActivity, DailyPhotos, DailyPhoto } from '~/types';
+// app/state/reducer.ts
+import type { AppState, Metric, Exercise, ExerciseCategory, WorkoutSession, WorkoutExercise, ExerciseSet, CardioActivity, DailyPhotos, DailyPhoto, WorkoutTemplate } from '~/types';
+import { v4 as uuidv4 } from "uuid";
 
 // Reducer for state management
 export function appReducer(state: AppState, action: any): AppState {
@@ -67,7 +69,8 @@ export function appReducer(state: AppState, action: any): AppState {
         exercises: action.exercises || state.exercises,
         exerciseCategories: action.exerciseCategories || state.exerciseCategories,
         workoutSessions: action.workoutSessions || state.workoutSessions,
-        dailyPhotos: action.dailyPhotos || state.dailyPhotos || []
+        dailyPhotos: action.dailyPhotos || state.dailyPhotos || [],
+        templates: action.templates || state.templates || [],
       };
     
     case "SELECT_WORKOUT_TYPE":
@@ -76,6 +79,22 @@ export function appReducer(state: AppState, action: any): AppState {
         selectedWorkoutType: action.workoutType,
         view: "workout-active"
       };
+      case "START_WORKOUT_FROM_TEMPLATE":
+        const { workoutType, exercises } = action.payload;
+        const newSession: WorkoutSession = {
+          id: uuidv4(),
+          date: new Date().toISOString().split("T")[0],
+          workoutType: workoutType,
+          startTime: new Date().toISOString(),
+          exercises: exercises,
+          completed: false,
+        };
+        return {
+          ...state,
+          selectedWorkoutType: workoutType,
+          currentWorkoutSession: newSession,
+          view: "workout-active",
+        };
     
     case "START_WORKOUT_SESSION":
       return {
@@ -367,7 +386,33 @@ export function appReducer(state: AppState, action: any): AppState {
         )
       };
     
+      case "CREATE_TEMPLATE":
+      const newTemplate: WorkoutTemplate = {
+        ...action.payload.template,
+        id: uuidv4(),
+      };
+      return {
+        ...state,
+        templates: [...state.templates, newTemplate],
+      };
+
+    case "UPDATE_TEMPLATE":
+      return {
+        ...state,
+        templates: state.templates.map(t =>
+          t.id === action.payload.template.id ? action.payload.template : t
+        ),
+      };
+
+    case "DELETE_TEMPLATE":
+      return {
+        ...state,
+        templates: state.templates.filter(
+          t => t.id !== action.payload.templateId
+        ),
+      };
+
     default:
       return state;
   }
-} 
+}

@@ -10,6 +10,19 @@ export const ExercisesView = ({ state, dispatch }: ExercisesViewProps) => {
   const [showAddExercise, setShowAddExercise] = useState(false);
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>(
+    () => state.exerciseCategories.reduce((acc, category) => {
+        acc[category.id] = true; // Collapse by default
+        return acc;
+    }, {} as Record<string, boolean>)
+  );
+
+  const toggleCategory = (categoryId: string) => {
+    setCollapsedCategories(prev => ({
+        ...prev,
+        [categoryId]: !prev[categoryId]
+    }));
+  };
 
   const exercisesByCategory = state.exerciseCategories.map(category => ({
     ...category,
@@ -161,7 +174,6 @@ export const ExercisesView = ({ state, dispatch }: ExercisesViewProps) => {
   const AddCategoryForm = () => {
     const [formData, setFormData] = useState({
       name: "",
-      day: ""
     });
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -173,7 +185,7 @@ export const ExercisesView = ({ state, dispatch }: ExercisesViewProps) => {
         category: formData
       });
 
-      setFormData({ name: "", day: "" });
+      setFormData({ name: "" });
       setShowAddCategory(false);
     };
 
@@ -191,23 +203,10 @@ export const ExercisesView = ({ state, dispatch }: ExercisesViewProps) => {
               <input
                 type="text"
                 value={formData.name}
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
                 placeholder="ej. Push Upper"
                 required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Día (opcional)
-              </label>
-              <input
-                type="text"
-                value={formData.day}
-                onChange={(e) => setFormData({...formData, day: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
-                placeholder="ej. Lunes"
               />
             </div>
 
@@ -275,66 +274,73 @@ export const ExercisesView = ({ state, dispatch }: ExercisesViewProps) => {
       <div className="space-y-6">
         {filteredCategories.map(category => (
           <div key={category.id} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 text-white">
+            <div 
+              className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 text-white cursor-pointer"
+              onClick={() => toggleCategory(category.id)}
+            >
               <div className="flex items-center justify-between">
-                <h4 className="text-xl font-bold">{category.name}</h4>
-                {category.day && (
-                  <span className="bg-white bg-opacity-20 px-3 py-1 rounded-full text-sm font-medium">
-                    {category.day}
-                  </span>
-                )}
+                <div>
+                    <h4 className="text-xl font-bold">{category.name}</h4>
+                    <p className="text-blue-100 mt-1">
+                        {category.exercises.length} ejercicios
+                    </p>
+                </div>
+                <div className="flex items-center space-x-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transform transition-transform duration-200 ${!collapsedCategories[category.id] ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </div>
               </div>
-              <p className="text-blue-100 mt-1">
-                {category.exercises.length} ejercicios
-              </p>
             </div>
 
-            <div className="p-6">
-              {category.exercises.length === 0 ? (
-                <p className="text-center text-gray-500 dark:text-gray-400 py-8">
-                  No hay ejercicios en esta categoría
-                </p>
-              ) : (
-                <div className="grid gap-4">
-                  {category.exercises.map((exercise, index) => (
-                    <div key={exercise.id} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-                      <div className="flex items-center space-x-4">
-                        <span className="text-sm font-medium text-gray-500 dark:text-gray-400 w-8">
-                          {index + 1}.
-                        </span>
-                        <div className="flex-1">
-                          <h5 className="font-semibold text-gray-900 dark:text-white">
-                            {exercise.name}
-                          </h5>
-                          {exercise.notes && (
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                              {exercise.notes}
-                            </p>
+            {!collapsedCategories[category.id] && (
+              <div className="p-6">
+                {category.exercises.length === 0 ? (
+                  <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+                    No hay ejercicios en esta categoría
+                  </p>
+                ) : (
+                  <div className="grid gap-4">
+                    {category.exercises.map((exercise, index) => (
+                      <div key={exercise.id} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                        <div className="flex items-center space-x-4">
+                          <span className="text-sm font-medium text-gray-500 dark:text-gray-400 w-8">
+                            {index + 1}.
+                          </span>
+                          <div className="flex-1">
+                            <h5 className="font-semibold text-gray-900 dark:text-white">
+                              {exercise.name}
+                            </h5>
+                            {exercise.notes && (
+                              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                {exercise.notes}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-400">
+                          {exercise.sets && (
+                            <span className="bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded">
+                              {exercise.sets} series
+                            </span>
+                          )}
+                          {exercise.reps && (
+                            <span className="bg-green-100 dark:bg-green-900 px-2 py-1 rounded">
+                              {exercise.reps} reps
+                            </span>
+                          )}
+                          {exercise.rpe && (
+                            <span className="bg-orange-100 dark:bg-orange-900 px-2 py-1 rounded">
+                              RPE {exercise.rpe}
+                            </span>
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-400">
-                        {exercise.sets && (
-                          <span className="bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded">
-                            {exercise.sets} series
-                          </span>
-                        )}
-                        {exercise.reps && (
-                          <span className="bg-green-100 dark:bg-green-900 px-2 py-1 rounded">
-                            {exercise.reps} reps
-                          </span>
-                        )}
-                        {exercise.rpe && (
-                          <span className="bg-orange-100 dark:bg-orange-900 px-2 py-1 rounded">
-                            RPE {exercise.rpe}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -346,4 +352,4 @@ export const ExercisesView = ({ state, dispatch }: ExercisesViewProps) => {
       {showAddCategory && <AddCategoryForm />}
     </div>
   );
-}; 
+};
