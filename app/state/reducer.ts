@@ -72,6 +72,13 @@ export function appReducer(state: AppState, action: any): AppState {
         dailyPhotos: action.dailyPhotos || state.dailyPhotos || [],
         templates: action.templates || state.templates || [],
       };
+
+    case 'LOAD_PUBLIC_DATA':
+      return {
+        ...state,
+        exercises: action.exercises,
+        exerciseCategories: action.exerciseCategories,
+      };
     
     case "SELECT_WORKOUT_TYPE":
       return {
@@ -386,7 +393,13 @@ export function appReducer(state: AppState, action: any): AppState {
         )
       };
     
-      case "CREATE_TEMPLATE":
+      case "LOAD_TEMPLATES":
+      return {
+        ...state,
+        templates: action.payload.templates,
+      };
+    
+    case "CREATE_TEMPLATE":
       const newTemplate: WorkoutTemplate = {
         ...action.payload.template,
         id: uuidv4(),

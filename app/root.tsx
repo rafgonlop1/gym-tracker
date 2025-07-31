@@ -4,8 +4,10 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useLoaderData,
 } from "@remix-run/react";
-import type { LinksFunction } from "@remix-run/node";
+import type { LinksFunction, LoaderFunctionArgs } from "@remix-run/node";
+import { json } from "@remix-run/node";
 
 import "./tailwind.css";
 
@@ -22,7 +24,18 @@ export const links: LinksFunction = () => [
   },
 ];
 
+export async function loader({ request }: LoaderFunctionArgs) {
+  const env = {
+    SUPABASE_URL: process.env.VITE_SUPABASE_URL!,
+    SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY!,
+  };
+
+  return json({ env });
+}
+
 export function Layout({ children }: { children: React.ReactNode }) {
+  const data = useLoaderData<typeof loader>();
+  
   return (
     <html lang="en">
       <head>
@@ -33,6 +46,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         {children}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.ENV = ${JSON.stringify(data?.env || {})}`,
+          }}
+        />
         <ScrollRestoration />
         <Scripts />
       </body>
@@ -42,4 +60,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return <Outlet />;
+}
+
+declare global {
+  interface Window {
+    ENV: {
+      SUPABASE_URL: string;
+      SUPABASE_ANON_KEY: string;
+    };
+  }
 }

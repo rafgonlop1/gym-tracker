@@ -1,21 +1,40 @@
 // app/components/TemplateManager.tsx
-import React, { useState, useEffect } from 'react';
-import type { AppDispatch, WorkoutTemplate, WorkoutType, WorkoutExercise, ExerciseSet } from '~/types';
+import React, { useState, useMemo } from 'react';
+import type { AppDispatch, WorkoutTemplate, WorkoutType, WorkoutExercise, ExerciseSet, Exercise, ExerciseCategory } from '~/types';
 import { ViewTransition } from './ViewTransition';
 import { v4 as uuidv4 } from 'uuid';
+import { createSupabaseClient } from '~/lib/supabase.client';
+import { DatabaseService } from '~/services/database';
 
 interface TemplateManagerProps {
   templates: WorkoutTemplate[];
   dispatch: AppDispatch;
+  exercises: Exercise[];
+  exerciseCategories: ExerciseCategory[];
+  userId: string; // <-- AÑADIR ESTO
 }
 
 const TemplateForm: React.FC<{
   template: WorkoutTemplate | Omit<WorkoutTemplate, 'id'>;
   onSave: (template: WorkoutTemplate | Omit<WorkoutTemplate, 'id'>) => void;
   onCancel: () => void;
-}> = ({ template, onSave, onCancel }) => {
+  exercises: Exercise[];
+  exerciseCategories: ExerciseCategory[];
+}> = ({ template, onSave, onCancel, exercises, exerciseCategories }) => {
   const [editedTemplate, setEditedTemplate] = useState(template);
   const [errors, setErrors] = useState<{ name?: string; exercises?: string }>({});
+
+  const workoutTypeToCategoryMap: Record<WorkoutType, string> = {
+    push: 'push-upper',
+    pull: 'pull-upper',
+    legs: 'legs-glutes',
+    plyometrics: 'plyometrics',
+  };
+
+  const availableExercises = useMemo(() => {
+    const categoryId = workoutTypeToCategoryMap[editedTemplate.workoutType];
+    return exercises.filter(ex => ex.category === categoryId);
+  }, [editedTemplate.workoutType, exercises]);
 
   const validate = () => {
     const newErrors: typeof errors = {};
@@ -39,7 +58,19 @@ const TemplateForm: React.FC<{
 
   const handleExerciseChange = (index: number, field: keyof WorkoutExercise, value: any) => {
     const newExercises = [...editedTemplate.exercises];
-    newExercises[index] = { ...newExercises[index], [field]: value };
+    let updatedExercise = { ...newExercises[index], [field]: value };
+
+    if (field === 'exerciseId') {
+      const selectedExercise = availableExercises.find(ex => ex.id === value);
+      if (selectedExercise) {
+        updatedExercise = {
+          ...updatedExercise,
+          exerciseName: selectedExercise.name,
+        };
+      }
+    }
+
+    newExercises[index] = updatedExercise;
     setEditedTemplate({ ...editedTemplate, exercises: newExercises });
   };
   
@@ -53,7 +84,7 @@ const TemplateForm: React.FC<{
   
   const addExercise = () => {
     const newExercise: WorkoutExercise = {
-      exerciseId: uuidv4(),
+      exerciseId: '',
       exerciseName: '',
       sets: [{ setNumber: 1, reps: 10, completed: false }],
     };
@@ -79,7 +110,6 @@ const TemplateForm: React.FC<{
   const removeSet = (exerciseIndex: number, setIndex: number) => {
     const newExercises = [...editedTemplate.exercises];
     newExercises[exerciseIndex].sets = newExercises[exerciseIndex].sets.filter((_, i) => i !== setIndex);
-    // Renumerar sets
     newExercises[exerciseIndex].sets.forEach((set, i) => {
       set.setNumber = i + 1;
     });
@@ -122,7 +152,19 @@ const TemplateForm: React.FC<{
               </label>
               <select
                 value={editedTemplate.workoutType}
-                onChange={(e) => setEditedTemplate({ ...editedTemplate, workoutType: e.target.value as WorkoutType })}
+                onChange={(e) => {
+                  const newWorkoutType = e.target.value as WorkoutType;
+                  const newExercises = editedTemplate.exercises.map(ex => ({
+                    ...ex,
+                    exerciseId: '', 
+                    exerciseName: ''
+                  }));
+                  setEditedTemplate({ 
+                    ...editedTemplate, 
+                    workoutType: newWorkoutType,
+                    exercises: newExercises
+                  });
+                }}
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
               >
                 <option value="push">Empuje</option>
@@ -162,16 +204,19 @@ const TemplateForm: React.FC<{
                   {editedTemplate.exercises.map((exercise, exIndex) => (
                     <div key={exIndex} className="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg">
                       <div className="flex items-start gap-3 mb-3">
-                        <input
-                          type="text"
-                          value={exercise.exerciseName}
+                        <select
+                          value={exercise.exerciseId}
                           onChange={(e) => {
-                            handleExerciseChange(exIndex, 'exerciseName', e.target.value);
+                            handleExerciseChange(exIndex, 'exerciseId', e.target.value);
                             setErrors({ ...errors, exercises: undefined });
                           }}
-                          placeholder="Nombre del ejercicio"
                           className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-                        />
+                        >
+                          <option value="" disabled>Selecciona un ejercicio</option>
+                          {availableExercises.map(ex => (
+                            <option key={ex.id} value={ex.id}>{ex.name}</option>
+                          ))}
+                        </select>
                         <button
                           onClick={() => removeExercise(exIndex)}
                           className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors duration-200"
@@ -250,8 +295,7 @@ const TemplateForm: React.FC<{
   );
 };
 
-
-export function TemplateManager({ templates, dispatch }: TemplateManagerProps) {
+export function TemplateManager({ templates, dispatch, exercises, exerciseCategories, userId }: TemplateManagerProps) { // <-- AÑADIR userId
   const [editingTemplate, setEditingTemplate] = useState<WorkoutTemplate | Omit<WorkoutTemplate, 'id'> | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<WorkoutType | 'all'>('all');
@@ -271,22 +315,60 @@ export function TemplateManager({ templates, dispatch }: TemplateManagerProps) {
   };
 
   const handleEdit = (template: WorkoutTemplate) => {
-    setEditingTemplate(template);
-  };
-
-  const handleDelete = (templateId: string) => {
-    if (window.confirm('¿Estás seguro de que quieres eliminar esta plantilla?')) {
-      dispatch({ type: 'DELETE_TEMPLATE', payload: { templateId } });
-    }
-  };
-
-  const handleSave = (template: WorkoutTemplate | Omit<WorkoutTemplate, 'id'>) => {
-    if ('id' in template) {
-      dispatch({ type: 'UPDATE_TEMPLATE', payload: { template } });
+    // Si la plantilla es global (no tiene user_id), crea una copia para el usuario.
+    if (!template.user_id) {
+      const newTemplate = {
+        ...template,
+        name: `${template.name} (Copia)`, // Añade "(Copia)" para que el usuario sepa que es la suya
+        // Quitamos el 'id' para que se cree un nuevo registro en la base de datos
+      };
+      // Aquí eliminamos el 'id' para que `handleSave` sepa que es una plantilla nueva
+      const { id, ...templateToCreate } = newTemplate;
+      setEditingTemplate(templateToCreate);
     } else {
-      dispatch({ type: 'CREATE_TEMPLATE', payload: { template } });
+      // Si es una plantilla del usuario, la edita directamente.
+      setEditingTemplate(template);
     }
-    setEditingTemplate(null);
+  };
+
+  const handleDelete = async (templateId: string) => {
+    if (window.confirm('¿Estás seguro de que quieres eliminar esta plantilla?')) {
+      try {
+        const supabase = createSupabaseClient();
+        const db = new DatabaseService(supabase);
+        
+        await db.deleteWorkoutTemplate(templateId);
+        dispatch({ type: 'DELETE_TEMPLATE', payload: { templateId } });
+      } catch (error) {
+        console.error('Error deleting template:', error);
+        alert('Error al eliminar la plantilla. Por favor, inténtalo de nuevo.');
+      }
+    }
+  };
+
+  const handleSave = async (template: WorkoutTemplate | Omit<WorkoutTemplate, 'id'>) => {
+    try {
+      const supabase = createSupabaseClient();
+      const db = new DatabaseService(supabase);
+
+      if ('id' in template) {
+        // Actualizar plantilla existente
+        await db.updateWorkoutTemplate(template.id, template);
+        dispatch({ type: 'UPDATE_TEMPLATE', payload: { template } });
+      } else {
+        // Crear nueva plantilla
+        const newTemplate = await db.createWorkoutTemplate(userId, template);
+        
+        // Recargar desde la base de datos para obtener la estructura completa
+        const updatedTemplates = await db.getWorkoutTemplates(userId);
+        dispatch({ type: 'LOAD_TEMPLATES', payload: { templates: updatedTemplates } });
+      }
+      
+      setEditingTemplate(null);
+    } catch (error) {
+      console.error('Error saving template:', error);
+      alert('Error al guardar la plantilla. Por favor, inténtalo de nuevo.');
+    }
   };
 
   const workoutTypeLabels: Record<WorkoutType | 'all', string> = {
@@ -358,45 +440,54 @@ export function TemplateManager({ templates, dispatch }: TemplateManagerProps) {
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
-            {filteredTemplates.map((template) => (
-              <div key={template.id} className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-200 dark:border-gray-700">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex-1">
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">{template.name}</h2>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                      {workoutTypeLabels[template.workoutType]}
-                    </span>
+            {filteredTemplates.map((template) => {
+              const isGlobal = !template.user_id;
+              return (
+                <div key={template.id} className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-200 dark:border-gray-700">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex-1">
+                      <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">{template.name}</h2>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                        {workoutTypeLabels[template.workoutType]}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="mb-4">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      {template.exercises.length} ejercicio{template.exercises.length !== 1 ? 's' : ''}
+                    </p>
+                    {template.exercises && template.exercises.length > 0 && (
+                      <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        {template.exercises
+                          .map(ex => ex.exerciseName)
+                          .filter(Boolean)
+                          .slice(0, 3)
+                          .join(', ')}
+                        {template.exercises.length > 3 && '...'}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleEdit(template)}
+                      className="flex-1 px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md transition-colors duration-200 text-sm font-medium"
+                    >
+                      {isGlobal ? 'Copiar y Editar' : 'Editar'}
+                    </button>
+                    {!isGlobal && ( // <-- SOLO MUESTRA EL BOTÓN SI NO ES GLOBAL
+                      <button
+                        onClick={() => handleDelete(template.id)}
+                        className="px-4 py-2 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 rounded-md transition-colors duration-200 text-sm font-medium"
+                      >
+                        Eliminar
+                      </button>
+                    )}
                   </div>
                 </div>
-                
-                <div className="mb-4">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {template.exercises.length} ejercicio{template.exercises.length !== 1 ? 's' : ''}
-                  </p>
-                  {template.exercises.length > 0 && (
-                    <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                      {template.exercises.slice(0, 3).map(ex => ex.exerciseName).join(', ')}
-                      {template.exercises.length > 3 && '...'}
-                    </div>
-                  )}
-                </div>
-                
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleEdit(template)}
-                    className="flex-1 px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md transition-colors duration-200 text-sm font-medium"
-                  >
-                    Editar
-                  </button>
-                  <button
-                    onClick={() => handleDelete(template.id)}
-                    className="px-4 py-2 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 rounded-md transition-colors duration-200 text-sm font-medium"
-                  >
-                    Eliminar
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -405,6 +496,8 @@ export function TemplateManager({ templates, dispatch }: TemplateManagerProps) {
             template={editingTemplate}
             onSave={handleSave}
             onCancel={() => setEditingTemplate(null)}
+            exercises={exercises}
+            exerciseCategories={exerciseCategories}
           />
         )}
       </div>

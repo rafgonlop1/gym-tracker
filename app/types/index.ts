@@ -67,7 +67,7 @@ export interface ExerciseSet {
 }
 
 export interface WorkoutExercise {
-  exerciseId: string;
+  exerciseId?: string;
   exerciseName: string;
   sets: ExerciseSet[];
   restTime?: number; // in seconds
@@ -128,6 +128,7 @@ export interface DailyPhotos {
 
 export interface WorkoutTemplate {
   id: string;
+  user_id: string | null;
   name: string;
   workoutType: WorkoutType;
   exercises: WorkoutExercise[];

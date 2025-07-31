@@ -2,8 +2,7 @@
 import type { MetaFunction } from "@remix-run/node";
 import { useReducer, useEffect, useState } from "react";
 import { appReducer } from "~/state/reducer";
-import { defaultMetrics, defaultExercises, defaultExerciseCategories, workoutTypes } from "~/data/defaults";
-import { workoutTemplates } from "~/data/templates";
+import { workoutTypes } from "~/data/defaults";
 import { DailySheetForm } from "~/components/DailySheetForm";
 import { AddMetricForm } from "~/components/AddMetricForm";
 import { ExercisesView } from "~/components/ExercisesView";
@@ -15,6 +14,10 @@ import { WorkoutActive } from "~/components/WorkoutActive";
 import { Navigation } from "~/components/Navigation";
 import { ViewTransition } from "~/components/ViewTransition";
 import { TemplateManager } from "~/components/TemplateManager";
+import { Auth } from "~/components/Auth";
+import { useAuth } from "~/hooks/useAuth";
+import { createSupabaseClient } from "~/lib/supabase.client";
+import { DatabaseService } from "~/services/database";
 import { getLatestValue, getPreviousValue, getTrend, getTrendIcon, getTrendColor, getColorClasses } from "~/utils/helpers";
 import { v4 as uuidv4 } from 'uuid';
 
@@ -26,32 +29,104 @@ export const meta: MetaFunction = () => {
 };
 
 export default function Dashboard() {
+  const { user, loading } = useAuth();
   const [state, dispatch] = useReducer(appReducer, {
-    metrics: defaultMetrics,
-    exercises: defaultExercises,
-    exerciseCategories: defaultExerciseCategories,
+    metrics: [],
+    exercises: [],
+    exerciseCategories: [],
     view: "dashboard",
     workoutSessions: [],
     dailyPhotos: [],
-    templates: [
-      { id: uuidv4(), name: "Push Upper", workoutType: "push", exercises: workoutTemplates.push },
-      { id: uuidv4(), name: "Pull Upper", workoutType: "pull", exercises: workoutTemplates.pull },
-      { id: uuidv4(), name: "Legs", workoutType: "legs", exercises: workoutTemplates.legs },
-      { id: uuidv4(), name: "Plyometrics", workoutType: "plyometrics", exercises: workoutTemplates.plyometrics },
-    ],
+    templates: [],
   });
   
   const [isNavCollapsed, setIsNavCollapsed] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(true);
+
+  // Load user data from Supabase
+  useEffect(() => {
+    if (user) {
+      loadUserData();
+    } else if (!loading) {
+      // If there's no user and we are not in a loading state,
+      // load public data like exercises.
+      loadPublicData();
+    }
+  }, [user, loading]);
+
+  const loadPublicData = async () => {
+    const supabase = createSupabaseClient();
+    const db = new DatabaseService(supabase);
+    try {
+      setIsLoadingData(true);
+      const [exercises, exerciseCategories] = await Promise.all([
+        db.getExercises(), // This will now only fetch global exercises
+        db.getExerciseCategories(),
+      ]);
+      dispatch({ type: 'LOAD_PUBLIC_DATA', exercises: exercises || [], exerciseCategories: exerciseCategories || [] });
+    } catch (error) {
+      console.error('Error loading public data:', error);
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
+  
+  const loadUserData = async () => {
+    if (!user) return;
+    
+    const supabase = createSupabaseClient();
+    const db = new DatabaseService(supabase);
+    
+    try {
+      setIsLoadingData(true);
+      
+      const [metrics, templates, workoutSessions, exercises, exerciseCategories] = await Promise.all([
+        db.getMetrics(user.id),
+        db.getWorkoutTemplates(user.id),
+        db.getWorkoutSessions(user.id),
+        db.getExercises(user.id),
+        db.getExerciseCategories(),
+      ]);
+
+      dispatch({
+        type: 'LOAD_DATA',
+        metrics: metrics || [],
+        templates: templates || [],
+        workoutSessions: workoutSessions || [],
+        exercises: exercises || [],
+        exerciseCategories: exerciseCategories || [],
+      });
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
+
+  // Show auth screen if not logged in
+  if (!user && !loading) {
+    return <Auth />;
+  }
+
+  // Show loading screen while checking auth or loading data
+  if (loading || isLoadingData) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin text-4xl mb-4">💪</div>
+          <p className="text-gray-600 dark:text-gray-400">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Calculate current streak
   const calculateCurrentStreak = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Get all activity dates (measurements, workouts, photos)
     const activityDates = new Set();
 
-    // Add measurement dates
     state.metrics.forEach(metric => {
       metric.measurements.forEach(measurement => {
         const date = new Date(measurement.date);
@@ -60,21 +135,18 @@ export default function Dashboard() {
       });
     });
 
-    // Add workout dates
     state.workoutSessions.forEach(session => {
       const date = new Date(session.date);
       date.setHours(0, 0, 0, 0);
       activityDates.add(date.getTime());
     });
 
-    // Add photo dates
     state.dailyPhotos.forEach(photo => {
       const date = new Date(photo.date);
       date.setHours(0, 0, 0, 0);
       activityDates.add(date.getTime());
     });
 
-    // Calculate streak starting from today going backwards
     let streak = 0;
     let currentDate = new Date(today);
     
@@ -85,8 +157,6 @@ export default function Dashboard() {
         streak++;
         currentDate.setDate(currentDate.getDate() - 1);
       } else {
-        // If today has no activity, don't count it as breaking the streak
-        // Only break if we've started counting and find a gap
         if (streak > 0 || currentDate.getTime() === today.getTime()) {
           if (currentDate.getTime() !== today.getTime()) {
             break;
@@ -103,98 +173,26 @@ export default function Dashboard() {
 
   const currentStreak = calculateCurrentStreak();
 
-  // localStorage persistence
-  useEffect(() => {
-    const savedData = localStorage.getItem("gym-tracker-data");
-    if (savedData) {
-      try {
-        const parsed = JSON.parse(savedData);
-        dispatch({
-          type: "LOAD_DATA",
-          metrics: parsed.metrics,
-          exercises: parsed.exercises,
-          exerciseCategories: parsed.exerciseCategories,
-          workoutSessions: parsed.workoutSessions || [],
-          dailyPhotos: parsed.dailyPhotos || [],
-          templates: parsed.templates || [],
-        });
-      } catch (e) {
-        console.error("Error loading saved data:", e);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    const dataToSave = {
-      metrics: state.metrics,
-      exercises: state.exercises,
-      exerciseCategories: state.exerciseCategories,
-      workoutSessions: state.workoutSessions,
-      dailyPhotos: state.dailyPhotos,
-      templates: state.templates,
-    };
-    localStorage.setItem("gym-tracker-data", JSON.stringify(dataToSave));
-  }, [state.metrics, state.exercises, state.exerciseCategories, state.workoutSessions, state.dailyPhotos, state.templates]);
-
-  // Layout with navigation
-  const isFullScreenView = false; // Todas las vistas ahora tienen navegación
-
   const renderContent = () => {
     switch (state.view) {
       case "daily-sheet":
-        return (
-          <ViewTransition>
-            <DailySheetForm state={state} dispatch={dispatch} />
-          </ViewTransition>
-        );
+        return <ViewTransition><DailySheetForm state={state} dispatch={dispatch} /></ViewTransition>;
       case "add-metric":
-        return (
-          <ViewTransition>
-            <AddMetricForm dispatch={dispatch} />
-          </ViewTransition>
-        );
+        return <ViewTransition><AddMetricForm dispatch={dispatch} /></ViewTransition>;
       case "exercises":
-        return (
-          <ViewTransition>
-            <ExercisesView state={state} dispatch={dispatch} />
-          </ViewTransition>
-        );
+        return <ViewTransition><ExercisesView state={state} dispatch={dispatch} /></ViewTransition>;
       case "calendar":
-        return (
-          <ViewTransition>
-            <CalendarView state={state} dispatch={dispatch} />
-          </ViewTransition>
-        );
+        return <ViewTransition><CalendarView state={state} dispatch={dispatch} /></ViewTransition>;
       case "progress":
-        return (
-          <ViewTransition>
-            <ProgressView state={state} dispatch={dispatch} />
-          </ViewTransition>
-        );
+        return <ViewTransition><ProgressView state={state} dispatch={dispatch} /></ViewTransition>;
       case "timer":
-        return (
-          <ViewTransition>
-            <TimerView dispatch={dispatch} />
-          </ViewTransition>
-        );
+        return <ViewTransition><TimerView dispatch={dispatch} /></ViewTransition>;
       case "workout-selection":
-        return (
-          <ViewTransition>
-            <WorkoutTypeSelection dispatch={dispatch} templates={state.templates} />
-          </ViewTransition>
-        );
+        return <ViewTransition><WorkoutTypeSelection dispatch={dispatch} templates={state.templates} /></ViewTransition>;
       case "workout-active":
-        return (
-          <ViewTransition>
-            <WorkoutActive state={state} dispatch={dispatch} />
-          </ViewTransition>
-        );
+        return <ViewTransition><WorkoutActive state={state} dispatch={dispatch} /></ViewTransition>;
       case "templates":
-        return (
-          <ViewTransition>
-            <TemplateManager templates={state.templates} dispatch={dispatch} />
-          </ViewTransition>
-        );
+        return <ViewTransition><TemplateManager templates={state.templates} dispatch={dispatch} exercises={state.exercises} exerciseCategories={state.exerciseCategories} userId={user.id} /></ViewTransition>;
       default:
         return renderDashboard();
     }
@@ -202,30 +200,23 @@ export default function Dashboard() {
 
   const renderDashboard = () => (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950">
-      {/* Header */}
       <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md shadow-lg border-b border-gray-200/50 dark:border-gray-700/50 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-3">
               <div className="text-3xl animate-pulse">💪</div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  Gym Tracker
-                </h1>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Gym Tracker</h1>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Tu progreso diario</p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
               <div className="hidden sm:flex items-center space-x-2 bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-1.5">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {state.metrics.length}
-                </span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{state.metrics.length}</span>
                 <span className="text-xs text-gray-500 dark:text-gray-400">métricas</span>
               </div>
               <button className="relative group">
-                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium shadow-lg transform transition-transform group-hover:scale-110">
-                  U
-                </div>
+                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium shadow-lg transform transition-transform group-hover:scale-110">U</div>
                 <div className="absolute top-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-900"></div>
               </button>
             </div>
@@ -233,9 +224,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Welcome Section */}
         <div className="mb-10 text-center">
           <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent mb-3">
             ¡Bienvenido de vuelta!
@@ -257,17 +246,12 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
           {state.metrics.length === 0 ? (
             <div className="col-span-full bg-white dark:bg-gray-800 rounded-2xl p-12 text-center border-2 border-dashed border-gray-300 dark:border-gray-700">
               <div className="text-6xl mb-4">📊</div>
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                No hay métricas aún
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400 mb-6">
-                Comienza agregando tu primera métrica para trackear tu progreso
-              </p>
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No hay métricas aún</h3>
+              <p className="text-gray-600 dark:text-gray-400 mb-6">Comienza agregando tu primera métrica para trackear tu progreso</p>
               <button
                 onClick={() => dispatch({ type: "SET_VIEW", view: "add-metric" })}
                 className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg transition-colors"
@@ -288,7 +272,6 @@ export default function Dashboard() {
                   className="group relative bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer transform hover:-translate-y-1 overflow-hidden"
                   onClick={() => dispatch({ type: "SET_VIEW", view: "progress", metricId: metric.id })}
                 >
-                  {/* Background gradient */}
                   <div className={`absolute inset-0 opacity-5 bg-gradient-to-br ${
                     metric.color === 'blue' ? 'from-blue-500 to-blue-600' :
                     metric.color === 'green' ? 'from-green-500 to-green-600' :
@@ -301,17 +284,11 @@ export default function Dashboard() {
                   <div className="relative">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center space-x-3">
-                        <div className="text-3xl transform group-hover:scale-110 transition-transform">
-                          {metric.icon}
-                        </div>
+                        <div className="text-3xl transform group-hover:scale-110 transition-transform">{metric.icon}</div>
                         <div>
-                          <h3 className="font-bold text-lg text-gray-900 dark:text-white">
-                            {metric.name}
-                          </h3>
+                          <h3 className="font-bold text-lg text-gray-900 dark:text-white">{metric.name}</h3>
                           {metric.measurements.length > 0 && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {metric.measurements[metric.measurements.length - 1]?.date}
-                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{metric.measurements[metric.measurements.length - 1]?.date}</p>
                           )}
                         </div>
                       </div>
@@ -331,12 +308,8 @@ export default function Dashboard() {
                     
                     <div className="space-y-3">
                       <div className="flex items-baseline space-x-2">
-                        <span className="text-4xl font-bold text-gray-900 dark:text-white">
-                          {latestValue || "—"}
-                        </span>
-                        <span className="text-lg text-gray-500 dark:text-gray-400">
-                          {metric.unit}
-                        </span>
+                        <span className="text-4xl font-bold text-gray-900 dark:text-white">{latestValue || "—"}</span>
+                        <span className="text-lg text-gray-500 dark:text-gray-400">{metric.unit}</span>
                       </div>
                       
                       {previousValue && (
@@ -378,7 +351,6 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Primary Action - Start Workout */}
         <div className="mb-10 flex justify-center">
           <button
             onClick={() => dispatch({ type: "SET_VIEW", view: "workout-selection" })}
@@ -393,26 +365,13 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {/* Quick Stats */}
         <div className="bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 rounded-2xl p-6 mb-8">
-          <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-4 text-center">
-            Resumen de Actividad
-          </h3>
+          <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-4 text-center">Resumen de Actividad</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             {[
-              { 
-                label: "Total mediciones", 
-                value: state.metrics.reduce((acc, m) => acc + m.measurements.length, 0).toString(), 
-                icon: "📊",
-                color: "blue"
-              },
+              { label: "Total mediciones", value: state.metrics.reduce((acc, m) => acc + m.measurements.length, 0).toString(), icon: "📊", color: "blue" },
               { label: "Métricas activas", value: state.metrics.length.toString(), icon: "🎯", color: "green" },
-              { 
-                label: "Entrenamientos", 
-                value: state.workoutSessions.length.toString(), 
-                icon: "🏋️",
-                color: "orange"
-              },
+              { label: "Entrenamientos", value: state.workoutSessions.length.toString(), icon: "🏋️", color: "orange" },
               { 
                 label: "Última medición", 
                 value: state.metrics
@@ -423,12 +382,7 @@ export default function Dashboard() {
                 icon: "📅",
                 color: "purple"
               },
-              { 
-                label: "Con objetivos", 
-                value: state.metrics.filter(m => m.target).length.toString(), 
-                icon: "🏆",
-                color: "yellow"
-              },
+              { label: "Con objetivos", value: state.metrics.filter(m => m.target).length.toString(), icon: "🏆", color: "yellow" },
             ].map((stat, index) => (
               <div key={index} className="bg-white dark:bg-gray-800 rounded-xl p-4 text-center transform hover:scale-105 transition-transform">
                 <div className={`text-3xl mb-2 ${
@@ -438,49 +392,30 @@ export default function Dashboard() {
                   stat.color === 'purple' ? 'text-purple-500' :
                   stat.color === 'yellow' ? 'text-yellow-500' :
                   'text-gray-500'
-                }`}>
-                  {stat.icon}
-                </div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {stat.value}
-                </p>
-                <p className="text-xs text-gray-600 dark:text-gray-400">
-                  {stat.label}
-                </p>
+                }`}>{stat.icon}</div>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">{stat.label}</p>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Recent Activity */}
         {state.workoutSessions.length > 0 && (
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Actividad Reciente
-            </h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Actividad Reciente</h3>
             <div className="space-y-3">
               {state.workoutSessions.slice(-3).reverse().map((session) => (
                 <div key={session.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                   <div className="flex items-center space-x-3">
-                    <div className="text-2xl">
-                      {workoutTypes.find(wt => wt.id === session.workoutType)?.icon || '🏋️'}
-                    </div>
+                    <div className="text-2xl">{workoutTypes.find(wt => wt.id === session.workoutType)?.icon || '🏋️'}</div>
                     <div>
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {workoutTypes.find(wt => wt.id === session.workoutType)?.name || session.workoutType}
-                      </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {new Date(session.date).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })}
-                      </p>
+                      <p className="font-medium text-gray-900 dark:text-white">{workoutTypes.find(wt => wt.id === session.workoutType)?.name || session.workoutType}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{new Date(session.date).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })}</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-medium text-gray-900 dark:text-white">
-                      {session.totalDuration || 0} min
-                    </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {session.exercises?.length || 0} ejercicios
-                    </p>
+                    <p className="font-medium text-gray-900 dark:text-white">{session.totalDuration || 0} min</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{session.exercises?.length || 0} ejercicios</p>
                   </div>
                 </div>
               ))}
@@ -491,42 +426,26 @@ export default function Dashboard() {
     </div>
   );
 
-  // Full screen views (without navigation)
-  if (isFullScreenView) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950">
-        {renderContent()}
-      </div>
-    );
-  }
-
-  // Views with navigation
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950">
       <Navigation 
         currentView={state.view} 
         dispatch={dispatch} 
         metricsCount={state.metrics.length}
-        workoutsCount={state.exercises.length}
         onCollapsedChange={setIsNavCollapsed}
+        user={user}
       />
       
-      {/* Main container with sidebar offset */}
       <div className={`transition-all duration-300 ${isNavCollapsed ? 'lg:pl-20' : 'lg:pl-64'}`}>
-        {/* Mobile header */}
         <header className="lg:hidden bg-white/80 dark:bg-gray-900/80 backdrop-blur-md shadow-lg border-b border-gray-200/50 dark:border-gray-700/50 sticky top-0 z-40">
           <div className="px-4 sm:px-6">
             <div className="flex justify-between items-center h-16">
               <div className="flex items-center space-x-3">
                 <div className="text-3xl">💪</div>
-                <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                  Gym Tracker
-                </h1>
+                <h1 className="text-xl font-bold text-gray-900 dark:text-white">Gym Tracker</h1>
               </div>
               <button className="relative group">
-                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium shadow-lg">
-                  U
-                </div>
+                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium shadow-lg">U</div>
                 <div className="absolute top-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-900"></div>
               </button>
             </div>

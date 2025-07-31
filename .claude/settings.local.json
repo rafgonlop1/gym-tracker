@@ -16,7 +16,8 @@
       "Bash(npx create-react-router:*)",
       "Bash(npx tailwindcss init:*)",
       "Bash(ls:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(openssl rand:*)"
     ],
     "deny": []
   }

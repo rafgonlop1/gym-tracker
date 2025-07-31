@@ -1,6 +1,8 @@
 // app/components/Navigation.tsx
 import { useState } from "react";
 import { AppView, AppDispatch } from "~/types";
+import { createSupabaseClient } from "~/lib/supabase.client";
+import type { User } from "@supabase/supabase-js";
 
 interface NavigationProps {
   currentView: AppView;
@@ -8,15 +10,22 @@ interface NavigationProps {
   metricsCount: number;
   workoutsCount: number;
   onCollapsedChange?: (collapsed: boolean) => void;
+  user?: User | null;
 }
 
-export function Navigation({ currentView, dispatch, metricsCount, workoutsCount, onCollapsedChange }: NavigationProps) {
+export function Navigation({ currentView, dispatch, metricsCount, onCollapsedChange, user }: NavigationProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   
   const handleToggleCollapse = () => {
     const newCollapsed = !isCollapsed;
     setIsCollapsed(newCollapsed);
     onCollapsedChange?.(newCollapsed);
+  };
+
+  const handleLogout = async () => {
+    const supabase = createSupabaseClient();
+    await supabase.auth.signOut();
+    window.location.reload();
   };
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: "🏠", color: "blue" },
@@ -87,16 +96,11 @@ export function Navigation({ currentView, dispatch, metricsCount, workoutsCount,
                         {metricsCount}
                       </span>
                     )}
-                    {item.id === "exercises" && workoutsCount > 0 && (
-                      <span className="ml-auto bg-gray-200 dark:bg-gray-700 text-xs px-2 py-0.5 rounded-full animate-fadeIn">
-                        {workoutsCount}
-                      </span>
-                    )}
                   </>
                 )}
-                {isCollapsed && (item.id === "daily-sheet" && metricsCount > 0 || item.id === "exercises" && workoutsCount > 0) && (
+                {isCollapsed && (item.id === "daily-sheet" && metricsCount > 0) && (
                   <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                    {item.id === "daily-sheet" ? metricsCount : workoutsCount}
+                    {metricsCount}
                   </div>
                 )}
               </button>
@@ -115,21 +119,47 @@ export function Navigation({ currentView, dispatch, metricsCount, workoutsCount,
           </nav>
 
           {/* User Section */}
-          <div className={`flex-shrink-0 flex border-t border-gray-200 dark:border-gray-700 p-4 ${isCollapsed ? 'justify-center' : ''}`}>
-            <div className={`flex items-center ${isCollapsed ? '' : 'w-full'}`}>
-              <div className="relative">
-                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium">
-                  U
+          <div className={`flex-shrink-0 border-t border-gray-200 dark:border-gray-700 p-4`}>
+            <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
+              <div className={`flex items-center ${isCollapsed ? '' : 'flex-1'}`}>
+                <div className="relative">
+                  <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium">
+                    {user?.email?.[0]?.toUpperCase() || 'U'}
+                  </div>
+                  <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-900"></div>
                 </div>
-                <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-900"></div>
+                {!isCollapsed && (
+                  <div className="ml-3 flex-1 animate-fadeIn">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
+                      {user?.email || 'Usuario'}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Activo</p>
+                  </div>
+                )}
               </div>
               {!isCollapsed && (
-                <div className="ml-3 flex-1 animate-fadeIn">
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Usuario</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Activo</p>
-                </div>
+                <button
+                  onClick={handleLogout}
+                  className="ml-2 p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                  title="Cerrar sesión"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                </button>
               )}
             </div>
+            {isCollapsed && (
+              <button
+                onClick={handleLogout}
+                className="mt-2 p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                title="Cerrar sesión"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
       </aside>
