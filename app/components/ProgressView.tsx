@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import type { AppState, Metric, WorkoutSession, WorkoutExercise, DailyPhotos, PhotoType } from "~/types";
 import { getLatestValue, getTrend, getTrendIcon, getTrendColor, getColorClasses, getDateString } from "~/utils/helpers";
 import { LineChart } from "./LineChart";
@@ -33,9 +33,9 @@ const ExerciseChart = ({ exerciseData, metricType = 'maxWeight' }: {
   const dataPoints = exerciseData.sessions.map(session => {
     let value = 0;
     if (metricType === 'maxWeight') {
-      value = session.sets.length > 0 ? Math.max(...session.sets.map(set => set.weight)) : 0;
+      value = session.sets.length > 0 ? Math.max(...session.sets.map(set => set.weight || 0)) : 0;
     } else if (metricType === 'volume') {
-      value = session.sets.reduce((sum, set) => sum + (set.weight * set.reps), 0);
+      value = session.sets.reduce((sum, set) => sum + ((set.weight || 0) * (set.reps || 0)), 0);
     } else if (metricType === 'avgRpe') {
       const rpeValues = session.sets.filter(set => set.rpe);
       value = rpeValues.length > 0 ? rpeValues.reduce((sum, set) => sum + (set.rpe || 0), 0) / rpeValues.length : 0;
@@ -545,10 +545,16 @@ export const ProgressView = ({ state, dispatch }: ProgressViewProps) => {
   const [activeTab, setActiveTab] = useState<'exercises' | 'cardio' | 'metrics' | 'photos'>('exercises');
   const [selectedExercise, setSelectedExercise] = useState<string>('');
   const [selectedCardioActivity, setSelectedCardioActivity] = useState<string>('');
-  const [selectedMetric, setSelectedMetric] = useState(state.selectedMetricId || state.metrics[0]?.id);
+  const [selectedMetric, setSelectedMetric] = useState<string>('');
   const [timeRange, setTimeRange] = useState<'week' | 'month' | 'all'>('all');
   const [selectedPhotoDate, setSelectedPhotoDate] = useState<string>('');
   const [photoComparison, setPhotoComparison] = useState<{ startDate: string, endDate: string } | null>(null);
+
+  // Sync selectedMetric with state changes
+  useEffect(() => {
+    const initialMetric = state.selectedMetricId || state.metrics[0]?.id || '';
+    setSelectedMetric(initialMetric);
+  }, [state.selectedMetricId, state.metrics]);
 
   // Get all unique exercises from workout sessions
   const exerciseData = useMemo(() => {
@@ -568,14 +574,15 @@ export const ProgressView = ({ state, dispatch }: ProgressViewProps) => {
     state.workoutSessions.forEach(session => {
       if (session.exercises) {
         session.exercises.forEach(exercise => {
-          if (!exerciseMap.has(exercise.exerciseId)) {
+          if (exercise.exerciseId && exercise.exerciseName && !exerciseMap.has(exercise.exerciseId)) {
             exerciseMap.set(exercise.exerciseId, {
               name: exercise.exerciseName,
               sessions: []
             });
           }
           
-          exerciseMap.get(exercise.exerciseId)!.sessions.push({
+          if (exercise.exerciseId) {
+            exerciseMap.get(exercise.exerciseId)!.sessions.push({
             date: session.date,
             sets: exercise.sets.map(set => ({
               weight: set.weight || 0,
@@ -584,6 +591,7 @@ export const ProgressView = ({ state, dispatch }: ProgressViewProps) => {
               completed: set.completed
             }))
           });
+          }
         });
       }
     });
@@ -633,13 +641,18 @@ export const ProgressView = ({ state, dispatch }: ProgressViewProps) => {
     }));
   }, [state.workoutSessions]);
 
-  // Set initial selections
-  if (!selectedExercise && exerciseData.length > 0) {
-    setSelectedExercise(exerciseData[0].id);
-  }
-  if (!selectedCardioActivity && cardioData.length > 0) {
-    setSelectedCardioActivity(cardioData[0].name);
-  }
+  // Set initial selections with useEffect to avoid infinite loops
+  useEffect(() => {
+    if (!selectedExercise && exerciseData.length > 0) {
+      setSelectedExercise(exerciseData[0].id);
+    }
+  }, [selectedExercise, exerciseData]);
+
+  useEffect(() => {
+    if (!selectedCardioActivity && cardioData.length > 0) {
+      setSelectedCardioActivity(cardioData[0].name);
+    }
+  }, [selectedCardioActivity, cardioData]);
 
   // Chart metric state for exercises and cardio
   const [exerciseChartMetric, setExerciseChartMetric] = useState<'maxWeight' | 'volume' | 'avgRpe'>('maxWeight');
@@ -676,8 +689,8 @@ export const ProgressView = ({ state, dispatch }: ProgressViewProps) => {
       session.sets.map(set => ({ ...set, date: session.date }))
     );
     
-    const maxWeight = allSets.length > 0 ? Math.max(...allSets.map(set => set.weight)) : 0;
-    const totalVolume = allSets.reduce((sum, set) => sum + (set.weight * set.reps), 0);
+    const maxWeight = allSets.length > 0 ? Math.max(...allSets.map(set => set.weight || 0)) : 0;
+    const totalVolume = allSets.reduce((sum, set) => sum + ((set.weight || 0) * (set.reps || 0)), 0);
     const rpeValues = allSets.filter(set => set.rpe);
     const avgRpe = rpeValues.length > 0 ? rpeValues.reduce((sum, set) => sum + (set.rpe || 0), 0) / rpeValues.length : 0;
 
@@ -783,8 +796,8 @@ export const ProgressView = ({ state, dispatch }: ProgressViewProps) => {
               </thead>
               <tbody>
                 {selectedExerciseData.sessions.slice().reverse().map((session, index) => {
-                  const sessionMaxWeight = session.sets.length > 0 ? Math.max(...session.sets.map(set => set.weight)) : 0;
-                  const sessionVolume = session.sets.reduce((sum, set) => sum + (set.weight * set.reps), 0);
+                  const sessionMaxWeight = session.sets.length > 0 ? Math.max(...session.sets.map(set => set.weight || 0)) : 0;
+                  const sessionVolume = session.sets.reduce((sum, set) => sum + ((set.weight || 0) * (set.reps || 0)), 0);
                   const sessionRpeValues = session.sets.filter(set => set.rpe);
                   const sessionAvgRpe = sessionRpeValues.length > 0 ? sessionRpeValues.reduce((sum, set) => sum + (set.rpe || 0), 0) / sessionRpeValues.length : 0;
                   

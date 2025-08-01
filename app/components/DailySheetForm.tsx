@@ -3,6 +3,9 @@ import type { AppState, Metric, WorkoutSession } from "~/types";
 import { getColorClasses, getLatestValue, getDateString } from "~/utils/helpers";
 import { workoutTypes } from "~/data/defaults";
 import { PhotoUpload } from "./PhotoUpload";
+import { createSupabaseClient } from "~/lib/supabase.client";
+import { DatabaseService } from "~/services/database";
+import { useAuth } from "~/hooks/useAuth";
 
 interface DailySheetFormProps {
   state: AppState;
@@ -10,9 +13,12 @@ interface DailySheetFormProps {
 }
 
 export const DailySheetForm = ({ state, dispatch }: DailySheetFormProps) => {
+  const { user } = useAuth();
   const today = getDateString();
   const [date, setDate] = useState(today);
   const [measurements, setMeasurements] = useState<{[key: string]: {value: string, notes: string}}>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string>("");
 
   // Load measurements for selected date
   const loadMeasurementsForDate = (selectedDate: string) => {
@@ -42,23 +48,56 @@ export const DailySheetForm = ({ state, dispatch }: DailySheetFormProps) => {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!user) {
+      setError("Debes estar logueado para guardar mediciones");
+      return;
+    }
+
     const validMeasurements = Object.fromEntries(
       Object.entries(measurements).filter(([_, data]) => data.value.trim() !== "")
     );
     
-    // Save measurements if there are any
-    if (Object.keys(validMeasurements).length > 0) {
+    if (Object.keys(validMeasurements).length === 0) {
+      // Always go back to dashboard if no measurements
+      dispatch({ type: "SET_VIEW", view: "dashboard" });
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError("");
+    
+    try {
+      const supabase = createSupabaseClient();
+      const db = new DatabaseService(supabase);
+      
+      // Save each measurement to database
+      const promises = Object.entries(validMeasurements).map(([metricId, data]) => {
+        return db.addMeasurement(metricId, date, parseFloat(data.value), data.notes || undefined);
+      });
+      
+      await Promise.all(promises);
+      
+      // Then update local state
       dispatch({
         type: "ADD_DAILY_MEASUREMENTS",
         date,
         measurements: validMeasurements
       });
+      
+      // Go back to dashboard
+      dispatch({ type: "SET_VIEW", view: "dashboard" });
+      
+    } catch (error) {
+      console.error('Error saving measurements:', error);
+      console.log('Measurements data being sent:', validMeasurements);
+      console.log('Current metrics:', state.metrics);
+      setError("Error al guardar las mediciones. Inténtalo de nuevo.");
+    } finally {
+      setIsSubmitting(false);
     }
-    
-    // Always go back to dashboard
-    dispatch({ type: "SET_VIEW", view: "dashboard" });
   };
 
   const hasAnyValue = Object.values(measurements).some(m => m?.value?.trim());
@@ -400,19 +439,38 @@ export const DailySheetForm = ({ state, dispatch }: DailySheetFormProps) => {
               date={date}
               existingPhotos={dayPhotos}
               dispatch={dispatch}
+              user={user!}
             />
           </div>
+
+          {/* Error message */}
+          {error && (
+            <div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
+              <p className="text-red-600 dark:text-red-400">{error}</p>
+            </div>
+          )}
 
           <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
             <button
               type="submit"
-              className={`px-6 py-3 text-white rounded-md font-medium transition-colors ${
+              disabled={isSubmitting}
+              className={`px-6 py-3 text-white rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                 hasAnyValue 
                   ? "bg-green-600 hover:bg-green-700" 
                   : "bg-blue-600 hover:bg-blue-700"
               }`}
             >
-              {hasAnyValue ? "💾 Guardar y Volver" : "🏠 Volver al Dashboard"}
+              {isSubmitting ? (
+                <span className="flex items-center space-x-2">
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  <span>Guardando...</span>
+                </span>
+              ) : (
+                hasAnyValue ? "💾 Guardar y Volver" : "🏠 Volver al Dashboard"
+              )}
             </button>
           </div>
         </form>

@@ -42,6 +42,8 @@ export default function Dashboard() {
   
   const [isNavCollapsed, setIsNavCollapsed] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(true);
+  const [persistedWorkoutIds, setPersistedWorkoutIds] = useState(new Set<string>());
+  const [deletedWorkoutIds, setDeletedWorkoutIds] = useState(new Set<string>());
 
   // Load user data from Supabase
   useEffect(() => {
@@ -53,6 +55,100 @@ export default function Dashboard() {
       loadPublicData();
     }
   }, [user, loading]);
+
+  // Persist workout sessions to database when they are added/modified/deleted
+  useEffect(() => {
+    const persistWorkoutSessions = async () => {
+      if (!user || isLoadingData) return;
+      
+      const supabase = createSupabaseClient();
+      const db = new DatabaseService(supabase);
+      
+      // Current session IDs in state
+      const currentSessionIds = new Set(state.workoutSessions.map(s => s.id));
+      
+      // Find sessions that have been deleted (were persisted but no longer in state)
+      const deletedSessionIds = Array.from(persistedWorkoutIds).filter(id => 
+        !currentSessionIds.has(id) && !deletedWorkoutIds.has(id)
+      );
+      
+      console.log('Checking for deletions:', {
+        persistedIds: Array.from(persistedWorkoutIds),
+        currentIds: Array.from(currentSessionIds),
+        deletedIds: deletedSessionIds
+      });
+      
+      // Delete sessions from database
+      for (const sessionId of deletedSessionIds) {
+        try {
+          // Only delete from database if it's a real database ID (not a temp ID)
+          if (sessionId && !sessionId.includes('-')) {
+            console.log('Attempting to delete workout session:', sessionId);
+            await db.deleteWorkoutSession(sessionId);
+            console.log('Workout session deleted from database:', sessionId);
+          } else {
+            console.log('Skipping deletion of temp ID:', sessionId);
+          }
+          
+          // Mark as deleted to avoid processing again
+          setDeletedWorkoutIds(prev => new Set(prev).add(sessionId));
+          setPersistedWorkoutIds(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(sessionId);
+            return newSet;
+          });
+        } catch (error) {
+          console.error('Error deleting workout session from database:', error);
+        }
+      }
+      
+      // Find sessions that haven't been persisted yet
+      const unpersisted = state.workoutSessions.filter(session => 
+        !persistedWorkoutIds.has(session.id) && session.completed
+      );
+      
+      for (const session of unpersisted) {
+        try {
+          // Check if this is an edit of an existing session by checking if it came from database
+          const isEditing = session.id && !session.id.includes('-'); // Database IDs don't have hyphens
+          
+          if (isEditing) {
+            // Update existing session
+            await db.updateWorkoutSession(session.id, {
+              endTime: session.endTime,
+              totalDuration: session.totalDuration,
+              completed: session.completed,
+              exercises: session.exercises || [],
+              cardioActivities: session.cardioActivities || []
+            });
+            console.log('Workout session updated in database:', session.id);
+          } else {
+            // Create new session in database
+            const { date, workoutType, startTime, endTime, totalDuration, completed, exercises, cardioActivities } = session;
+            const newSession = await db.createWorkoutSession(user.id, {
+              date,
+              workoutType,
+              startTime,
+              endTime,
+              totalDuration,
+              completed,
+              exercises: exercises || [],
+              cardioActivities: cardioActivities || []
+            });
+            console.log('Workout session saved to database:', newSession.id);
+          }
+          
+          // Mark this session as persisted
+          setPersistedWorkoutIds(prev => new Set(prev).add(session.id));
+        } catch (error) {
+          console.error('Error saving workout session to database:', error);
+          // You might want to show a toast notification here
+        }
+      }
+    };
+
+    persistWorkoutSessions();
+  }, [state.workoutSessions, user, isLoadingData, persistedWorkoutIds, deletedWorkoutIds]);
 
   const loadPublicData = async () => {
     const supabase = createSupabaseClient();
@@ -71,6 +167,41 @@ export default function Dashboard() {
     }
   };
   
+  // Transform photos from database format to local state format
+  const transformPhotosFromDB = async (dbPhotos: any[]) => {
+    const supabase = createSupabaseClient();
+    const db = new DatabaseService(supabase);
+    
+    const groupedByDate = {};
+    
+    for (const photo of dbPhotos) {
+      const date = photo.date;
+      if (!groupedByDate[date]) {
+        groupedByDate[date] = {
+          date,
+          photos: []
+        };
+      }
+      
+      // Get signed URL for secure access
+      try {
+        const signedUrl = await db.getSignedPhotoUrl(photo.photo_url);
+        groupedByDate[date].photos.push({
+          id: photo.id,
+          type: photo.photo_type,
+          dataUrl: signedUrl, // Use signed URL instead of public URL
+          fileName: photo.photo_url, // Store file path for deletion
+          timestamp: photo.created_at
+        });
+      } catch (error) {
+        console.error('Error getting signed URL for photo:', error);
+        // Skip this photo if we can't get a signed URL
+      }
+    }
+    
+    return Object.values(groupedByDate);
+  };
+
   const loadUserData = async () => {
     if (!user) return;
     
@@ -80,13 +211,23 @@ export default function Dashboard() {
     try {
       setIsLoadingData(true);
       
-      const [metrics, templates, workoutSessions, exercises, exerciseCategories] = await Promise.all([
+      let [metrics, templates, workoutSessions, exercises, exerciseCategories, dailyPhotos] = await Promise.all([
         db.getMetrics(user.id),
         db.getWorkoutTemplates(user.id),
         db.getWorkoutSessions(user.id),
         db.getExercises(user.id),
         db.getExerciseCategories(),
+        db.getDailyPhotos(user.id),
       ]);
+
+      // Initialize default metrics if user has none
+      if (!metrics || metrics.length === 0) {
+        await db.initializeDefaultMetrics(user.id);
+        metrics = await db.getMetrics(user.id);
+      }
+
+      // Transform photos from DB format to local format
+      const transformedDailyPhotos = await transformPhotosFromDB(dailyPhotos || []);
 
       dispatch({
         type: 'LOAD_DATA',
@@ -95,7 +236,12 @@ export default function Dashboard() {
         workoutSessions: workoutSessions || [],
         exercises: exercises || [],
         exerciseCategories: exerciseCategories || [],
+        dailyPhotos: transformedDailyPhotos,
       });
+      
+      // Mark all loaded workout sessions as already persisted
+      const existingIds = new Set((workoutSessions || []).map(session => session.id));
+      setPersistedWorkoutIds(existingIds);
     } catch (error) {
       console.error('Error loading user data:', error);
     } finally {

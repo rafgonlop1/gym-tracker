@@ -3,6 +3,9 @@ import type { AppState, Metric, Measurement, WorkoutSession, DailyPhoto } from "
 import { getLatestValue, getDateString } from "~/utils/helpers";
 import { workoutTypes } from "~/data/defaults";
 import { PhotoUpload } from "./PhotoUpload";
+import { createSupabaseClient } from "~/lib/supabase.client";
+import { DatabaseService } from "~/services/database";
+import { useAuth } from "~/hooks/useAuth";
 
 interface CalendarViewProps {
   state: AppState;
@@ -10,9 +13,12 @@ interface CalendarViewProps {
 }
 
 export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
+  const { user } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string>("");
 
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
@@ -157,8 +163,13 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
       return initialData;
     });
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
+      
+      if (!user) {
+        setError("Debes estar logueado para guardar mediciones");
+        return;
+      }
       
       // Filter out empty values and prepare for dispatch
       const measurementsToSave: Record<string, {value: string, notes: string}> = {};
@@ -168,16 +179,42 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
         }
       });
 
-      if (Object.keys(measurementsToSave).length > 0) {
+      if (Object.keys(measurementsToSave).length === 0) {
+        setShowEditModal(false);
+        setSelectedDay(null);
+        return;
+      }
+
+      setIsSubmitting(true);
+      setError("");
+      
+      try {
+        const supabase = createSupabaseClient();
+        const db = new DatabaseService(supabase);
+        
+        // Save each measurement to database first
+        const promises = Object.entries(measurementsToSave).map(([metricId, data]) => {
+          return db.addMeasurement(metricId, selectedDay!, parseFloat(data.value), data.notes || undefined);
+        });
+        
+        await Promise.all(promises);
+        
+        // Then update local state
         dispatch({
           type: "ADD_DAILY_MEASUREMENTS",
           date: selectedDay,
           measurements: measurementsToSave
         });
-      }
 
-      setShowEditModal(false);
-      setSelectedDay(null);
+        setShowEditModal(false);
+        setSelectedDay(null);
+        
+      } catch (error) {
+        console.error('Error saving measurements:', error);
+        setError("Error al guardar las mediciones. Inténtalo de nuevo.");
+      } finally {
+        setIsSubmitting(false);
+      }
     };
 
     const selectedDate = new Date(selectedDay);
@@ -454,22 +491,44 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
                   date={selectedDay}
                   existingPhotos={dayPhotos}
                   dispatch={dispatch}
+                  user={user!}
                 />
               </div>
+
+              {/* Error message */}
+              {error && (
+                <div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
+                  <p className="text-red-600 dark:text-red-400">{error}</p>
+                </div>
+              )}
 
               <div className="flex justify-end space-x-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => setShowEditModal(false)}
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setError("");
+                  }}
                   className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium"
+                  disabled={isSubmitting}
+                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Guardar Cambios
+                  {isSubmitting ? (
+                    <span className="flex items-center space-x-2">
+                      <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      <span>Guardando...</span>
+                    </span>
+                  ) : (
+                    "Guardar Cambios"
+                  )}
                 </button>
               </div>
             </form>
@@ -647,12 +706,12 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
                           {getWorkoutIcon(workout.workoutType)}
                         </span>
                       ))}
-                      {/* Then show metric icons */}
-                      {day.dayData.metrics.slice(0, 2).map((data, idx) => (
-                        <span key={`metric-${idx}`} className="text-xs">
-                          {data.metric.icon}
+                      {/* Show single metric icon if there are metrics */}
+                      {metricsCount > 0 && (
+                        <span key="metrics" className="text-xs">
+                          📊
                         </span>
-                      ))}
+                      )}
                       {/* Show photo icon if there are photos */}
                       {photosCount > 0 && (
                         <span key="photos" className="text-xs">

@@ -304,6 +304,7 @@ export interface Database {
           id: string
           user_id: string
           date: string
+          photo_type: string
           photo_url: string
           notes: string | null
           created_at: string
@@ -312,6 +313,7 @@ export interface Database {
           id?: string
           user_id: string
           date: string
+          photo_type: string
           photo_url: string
           notes?: string | null
           created_at?: string
@@ -320,6 +322,7 @@ export interface Database {
           id?: string
           user_id?: string
           date?: string
+          photo_type?: string
           photo_url?: string
           notes?: string | null
           created_at?: string

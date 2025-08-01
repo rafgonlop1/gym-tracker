@@ -115,51 +115,36 @@ export function Navigation({ currentView, dispatch, metricsCount, onCollapsedCha
                 <span className={`text-xl ${isCollapsed ? '' : 'mr-3'}`}>➕</span>
                 {!isCollapsed && <span className="animate-fadeIn">Nueva Métrica</span>}
               </button>
+              
+              <button
+                onClick={handleLogout}
+                className={`w-full flex items-center ${isCollapsed ? 'justify-center' : ''} px-3 py-2.5 text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400 transition-colors mt-1`}
+                title={isCollapsed ? "Cerrar sesión" : ""}
+              >
+                <span className={`text-xl ${isCollapsed ? '' : 'mr-3'}`}>🚪</span>
+                {!isCollapsed && <span className="animate-fadeIn">Cerrar sesión</span>}
+              </button>
             </div>
           </nav>
 
           {/* User Section */}
           <div className={`flex-shrink-0 border-t border-gray-200 dark:border-gray-700 p-4`}>
-            <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
-              <div className={`flex items-center ${isCollapsed ? '' : 'flex-1'}`}>
-                <div className="relative">
-                  <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium">
-                    {user?.email?.[0]?.toUpperCase() || 'U'}
-                  </div>
-                  <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-900"></div>
+            <div className={`flex items-center ${isCollapsed ? 'justify-center' : ''}`}>
+              <div className="relative">
+                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium">
+                  {user?.email?.[0]?.toUpperCase() || 'U'}
                 </div>
-                {!isCollapsed && (
-                  <div className="ml-3 flex-1 animate-fadeIn">
-                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
-                      {user?.email || 'Usuario'}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Activo</p>
-                  </div>
-                )}
+                <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-900"></div>
               </div>
               {!isCollapsed && (
-                <button
-                  onClick={handleLogout}
-                  className="ml-2 p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
-                  title="Cerrar sesión"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                  </svg>
-                </button>
+                <div className="ml-3 flex-1 animate-fadeIn">
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
+                    {user?.email || 'Usuario'}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Activo</p>
+                </div>
               )}
             </div>
-            {isCollapsed && (
-              <button
-                onClick={handleLogout}
-                className="mt-2 p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
-                title="Cerrar sesión"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-              </button>
-            )}
           </div>
         </div>
       </aside>

@@ -21,8 +21,13 @@ export const LineChart = ({ metric, width = 800, height = 400 }: { metric: Metri
     const chartWidth = width - paddingLeft - paddingRight;
     const chartHeight = height - paddingTop - paddingBottom;
 
-    const values = metric.measurements.map(m => m.value);
-    const dates = metric.measurements.map(m => new Date(m.date));
+    // Sort measurements by date first
+    const sortedMeasurements = [...metric.measurements].sort((a, b) => 
+        new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+    
+    const values = sortedMeasurements.map(m => m.value);
+    const dates = sortedMeasurements.map(m => new Date(m.date));
 
     const minValue = Math.min(...values);
     const maxValue = Math.max(...values);
@@ -38,7 +43,7 @@ export const LineChart = ({ metric, width = 800, height = 400 }: { metric: Metri
     const dateRange = maxDate - minDate || 1;
 
     // Create points
-    const points = metric.measurements.map((measurement, index) => {
+    const points = sortedMeasurements.map((measurement, index) => {
         const x = paddingLeft + ((new Date(measurement.date).getTime() - minDate) / dateRange) * chartWidth;
         const y = paddingTop + ((paddedMax - measurement.value) / paddedRange) * chartHeight;
         return { x, y, value: measurement.value, date: measurement.date };

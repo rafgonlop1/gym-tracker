@@ -34,7 +34,7 @@ export interface ExerciseCategory {
 
 export type AppView = "dashboard" | "daily-sheet" | "add-metric" | "exercises" | "calendar" | "progress" | "timer" | "workout-selection" | "workout-active" | "templates";
 
-export type WorkoutType = "push" | "pull" | "legs" | "plyometrics";
+export type WorkoutType = "push" | "pull" | "legs" | "plyometrics" | "hiit" | "cardio";
 
 export interface WorkoutTypeConfig {
   id: WorkoutType;
@@ -117,7 +117,8 @@ export type PhotoType = "front" | "back" | "side";
 export interface DailyPhoto {
   id: string;
   type: PhotoType;
-  dataUrl: string; // base64 encoded image
+  dataUrl: string; // signed URL for display
+  fileName?: string; // file path in storage for deletion
   timestamp: string; // ISO string
 }
 

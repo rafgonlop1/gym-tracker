@@ -31,9 +31,23 @@ export function appReducer(state: AppState, action: any): AppState {
               value: parseFloat(dailyValue.value),
               notes: dailyValue.notes || undefined
             };
+            
+            // Check if measurement for this date already exists
+            const existingIndex = metric.measurements.findIndex(m => m.date === action.date);
+            let updatedMeasurements;
+            
+            if (existingIndex >= 0) {
+              // Update existing measurement
+              updatedMeasurements = [...metric.measurements];
+              updatedMeasurements[existingIndex] = newMeasurement;
+            } else {
+              // Add new measurement
+              updatedMeasurements = [...metric.measurements, newMeasurement];
+            }
+            
             return {
               ...metric,
-              measurements: [...metric.measurements, newMeasurement].sort(
+              measurements: updatedMeasurements.sort(
                 (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
               )
             };
@@ -90,7 +104,7 @@ export function appReducer(state: AppState, action: any): AppState {
         const { workoutType, exercises } = action.payload;
         const newSession: WorkoutSession = {
           id: uuidv4(),
-          date: new Date().toISOString().split("T")[0],
+          date: state.selectedDate || new Date().toISOString().split("T")[0],
           workoutType: workoutType,
           startTime: new Date().toISOString(),
           exercises: exercises,
@@ -247,9 +261,13 @@ export function appReducer(state: AppState, action: any): AppState {
       };
     
     case "DELETE_WORKOUT_SESSION":
+      console.log('DELETE_WORKOUT_SESSION action triggered for ID:', action.workoutId);
+      console.log('Current workout sessions:', state.workoutSessions.map(w => w.id));
+      const filteredSessions = state.workoutSessions.filter(w => w.id !== action.workoutId);
+      console.log('After deletion:', filteredSessions.map(w => w.id));
       return {
         ...state,
-        workoutSessions: state.workoutSessions.filter(w => w.id !== action.workoutId)
+        workoutSessions: filteredSessions
       };
     
     case "REMOVE_EXERCISE_FROM_SESSION":

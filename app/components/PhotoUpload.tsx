@@ -1,10 +1,14 @@
 import { useState, useRef } from "react";
 import type { DailyPhoto, PhotoType, AppDispatch } from "~/types";
+import { createSupabaseClient } from "~/lib/supabase.client";
+import { DatabaseService } from "~/services/database";
+import type { User } from "@supabase/supabase-js";
 
 interface PhotoUploadProps {
   date: string;
   existingPhotos: DailyPhoto[];
   dispatch: AppDispatch;
+  user: User;
   onPhotosUpdated?: () => void;
 }
 
@@ -14,7 +18,7 @@ const PHOTO_TYPES: { type: PhotoType; label: string; icon: string }[] = [
   { type: "side", label: "Lado", icon: "↩️" },
 ];
 
-export function PhotoUpload({ date, existingPhotos, dispatch, onPhotosUpdated }: PhotoUploadProps) {
+export function PhotoUpload({ date, existingPhotos, dispatch, user, onPhotosUpdated }: PhotoUploadProps) {
   const [uploadingPhoto, setUploadingPhoto] = useState<PhotoType | null>(null);
   const fileInputRefs = useRef<{ [key in PhotoType]: HTMLInputElement | null }>({
     front: null,
@@ -41,15 +45,23 @@ export function PhotoUpload({ date, existingPhotos, dispatch, onPhotosUpdated }:
     setUploadingPhoto(type);
 
     try {
-      const dataUrl = await fileToBase64(file);
-      const existingPhoto = getExistingPhoto(type);
+      const supabase = createSupabaseClient();
+      const db = new DatabaseService(supabase);
+
+      // Upload photo to Supabase Storage and save to database
+      const uploadedPhotoData = await db.uploadPhoto(user.id, date, file, type);
       
+      // Create local photo object with signed URL for immediate display
+      const signedUrl = await db.getSignedPhotoUrl(uploadedPhotoData.photo_url);
       const newPhoto: DailyPhoto = {
-        id: existingPhoto?.id || `${date}-${type}-${Date.now()}`,
+        id: uploadedPhotoData.id,
         type,
-        dataUrl,
-        timestamp: new Date().toISOString(),
+        dataUrl: signedUrl, // Use signed URL for secure access
+        fileName: uploadedPhotoData.photo_url, // Store file path for deletion
+        timestamp: uploadedPhotoData.created_at,
       };
+
+      const existingPhoto = getExistingPhoto(type);
 
       if (existingPhoto) {
         // Replace existing photo
@@ -70,21 +82,36 @@ export function PhotoUpload({ date, existingPhotos, dispatch, onPhotosUpdated }:
 
       onPhotosUpdated?.();
     } catch (error) {
-      console.error('Error processing image:', error);
-      alert('Error al procesar la imagen. Por favor intenta de nuevo.');
+      console.error('Error uploading photo:', error);
+      alert('Error al subir la imagen. Por favor intenta de nuevo.');
     } finally {
       setUploadingPhoto(null);
     }
   };
 
-  const handleDeletePhoto = (photoId: string, type: PhotoType) => {
+  const handleDeletePhoto = async (photoId: string, type: PhotoType) => {
     if (confirm(`¿Estás seguro de que quieres eliminar la foto de ${PHOTO_TYPES.find(pt => pt.type === type)?.label}?`)) {
-      dispatch({
-        type: "DELETE_DAILY_PHOTO",
-        date,
-        photoId,
-      });
-      onPhotosUpdated?.();
+      try {
+        const existingPhoto = getExistingPhoto(type);
+        if (existingPhoto && existingPhoto.fileName) {
+          const supabase = createSupabaseClient();
+          const db = new DatabaseService(supabase);
+          
+          // Delete from storage and database
+          await db.deletePhoto(photoId, existingPhoto.fileName);
+        }
+        
+        // Update local state
+        dispatch({
+          type: "DELETE_DAILY_PHOTO",
+          date,
+          photoId,
+        });
+        onPhotosUpdated?.();
+      } catch (error) {
+        console.error('Error deleting photo:', error);
+        alert('Error al eliminar la foto. Por favor intenta de nuevo.');
+      }
     }
   };
 

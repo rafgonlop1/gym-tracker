@@ -2,11 +2,33 @@ import type { Metric } from '~/types';
 
 export const getLatestValue = (metric: Metric) => {
   if (metric.measurements.length === 0) return null;
+  
+  // First, try to get today's value
+  const today = getDateString();
+  const todayMeasurement = metric.measurements.find(m => m.date === today);
+  if (todayMeasurement) {
+    return todayMeasurement.value;
+  }
+  
+  // If no measurement for today, get the most recent one
   return metric.measurements[metric.measurements.length - 1].value;
 };
 
 export const getPreviousValue = (metric: Metric) => {
   if (metric.measurements.length < 2) return null;
+  
+  const today = getDateString();
+  const todayMeasurement = metric.measurements.find(m => m.date === today);
+  
+  if (todayMeasurement) {
+    // If we have today's measurement, get the most recent one before today
+    const previousMeasurements = metric.measurements
+      .filter(m => m.date !== today)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return previousMeasurements.length > 0 ? previousMeasurements[0].value : null;
+  }
+  
+  // If no measurement for today, get the second most recent
   return metric.measurements[metric.measurements.length - 2].value;
 };
 

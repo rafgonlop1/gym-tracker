@@ -1,10 +1,14 @@
 import { useState } from "react";
+import { createSupabaseClient } from "~/lib/supabase.client";
+import { DatabaseService } from "~/services/database";
+import { useAuth } from "~/hooks/useAuth";
 
 interface AddMetricFormProps {
   dispatch: React.Dispatch<any>;
 }
 
 export const AddMetricForm = ({ dispatch }: AddMetricFormProps) => {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     name: "",
     unit: "",
@@ -40,22 +44,48 @@ export const AddMetricForm = ({ dispatch }: AddMetricFormProps) => {
     e.preventDefault();
     
     if (!validateForm()) return;
+    if (!user) {
+      setErrors({ submit: "Debes estar logueado para crear métricas" });
+      return;
+    }
     
     setIsSubmitting(true);
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    dispatch({
-      type: "ADD_METRIC",
-      metric: {
-        ...formData,
+    try {
+      const supabase = createSupabaseClient();
+      const db = new DatabaseService(supabase);
+      
+      // Save to database first
+      const savedMetric = await db.createMetric(user.id, {
+        name: formData.name,
+        unit: formData.unit,
+        icon: formData.icon,
+        color: formData.color,
         target: formData.target ? parseFloat(formData.target) : undefined,
         targetType: formData.targetType
-      }
-    });
-    
-    setIsSubmitting(false);
+      });
+      
+      // Then update local state
+      dispatch({
+        type: "ADD_METRIC",
+        metric: {
+          id: savedMetric.id,
+          name: savedMetric.name,
+          unit: savedMetric.unit,
+          icon: savedMetric.icon,
+          color: savedMetric.color,
+          target: formData.target ? parseFloat(formData.target) : undefined,
+          targetType: formData.targetType,
+          measurements: []
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error creating metric:', error);
+      setErrors({ submit: "Error al crear la métrica. Inténtalo de nuevo." });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Icon and color preview
@@ -264,6 +294,13 @@ export const AddMetricForm = ({ dispatch }: AddMetricFormProps) => {
               </div>
             </div>
           </div>
+
+          {/* Error message */}
+          {errors.submit && (
+            <div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
+              <p className="text-red-600 dark:text-red-400">{errors.submit}</p>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex justify-end space-x-3 pt-4 border-t dark:border-gray-700">

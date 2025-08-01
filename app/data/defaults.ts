@@ -56,7 +56,9 @@ export const defaultMetrics: Metric[] = [
 export const defaultExerciseCategories: ExerciseCategory[] = [
   { id: "push-upper", name: "Push Upper" },
   { id: "pull-upper", name: "Pull Upper" },
-  { id: "legs-glutes", name: "Legs & Glutes" }
+  { id: "legs-glutes", name: "Legs & Glutes" },
+  { id: "hiit-plio", name: "HIIT & Pliometría" },
+  { id: "cardio", name: "Cardio" }
 ];
 
 // Initial exercises
@@ -88,7 +90,26 @@ export const defaultExercises: Exercise[] = [
   { id: "leg-extension", name: "Leg Extension", category: "legs-glutes", sets: "2", reps: "15" },
   { id: "lying-leg-curl", name: "Lying Leg Curl", category: "legs-glutes", sets: "2", reps: "15" },
   { id: "machine-abductor", name: "Machine Abductor", category: "legs-glutes", sets: "2", reps: "15" },
-  { id: "hollow-body-hold", name: "Hollow Body Hold", category: "legs-glutes", sets: "3", reps: "20 s" }
+  { id: "hollow-body-hold", name: "Hollow Body Hold", category: "legs-glutes", sets: "3", reps: "20 s" },
+
+  // HIIT & Pliometría
+  { id: "burpees", name: "Burpees", category: "hiit-plio", sets: "4", reps: "30 s" },
+  { id: "jump-squats", name: "Jump Squats", category: "hiit-plio", sets: "4", reps: "45 s" },
+  { id: "mountain-climbers", name: "Mountain Climbers", category: "hiit-plio", sets: "4", reps: "30 s" },
+  { id: "box-jumps", name: "Box Jumps", category: "hiit-plio", sets: "3", reps: "10" },
+  { id: "high-knees", name: "High Knees", category: "hiit-plio", sets: "4", reps: "30 s" },
+  { id: "jump-lunges", name: "Jump Lunges", category: "hiit-plio", sets: "3", reps: "20", notes: "c/pierna" },
+  { id: "plyo-pushups", name: "Plyo Push-ups", category: "hiit-plio", sets: "3", reps: "8-12" },
+  { id: "battle-ropes", name: "Battle Ropes", category: "hiit-plio", sets: "4", reps: "30 s" },
+
+  // Cardio
+  { id: "treadmill-run", name: "Treadmill Running", category: "cardio", sets: "1", reps: "30 min" },
+  { id: "elliptical", name: "Elliptical", category: "cardio", sets: "1", reps: "25 min" },
+  { id: "stationary-bike", name: "Stationary Bike", category: "cardio", sets: "1", reps: "30 min" },
+  { id: "rowing-machine", name: "Rowing Machine", category: "cardio", sets: "1", reps: "20 min" },
+  { id: "outdoor-run", name: "Outdoor Running", category: "cardio", sets: "1", reps: "5-10 km" },
+  { id: "swimming", name: "Swimming", category: "cardio", sets: "1", reps: "30 min" },
+  { id: "stair-climber", name: "Stair Climber", category: "cardio", sets: "1", reps: "20 min" }
 ];
 
 // Workout type configurations
@@ -124,5 +145,21 @@ export const workoutTypes: WorkoutTypeConfig[] = [
     icon: "🚀",
     color: "purple",
     estimatedDuration: "30-40 min"
+  },
+  {
+    id: "hiit",
+    name: "HIIT",
+    description: "Entrenamiento de alta intensidad por intervalos",
+    icon: "⚡",
+    color: "orange",
+    estimatedDuration: "20-30 min"
+  },
+  {
+    id: "cardio",
+    name: "Cardio",
+    description: "Entrenamiento cardiovascular y resistencia",
+    icon: "❤️",
+    color: "pink",
+    estimatedDuration: "30-60 min"
   }
 ];
