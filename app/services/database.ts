@@ -121,6 +121,34 @@ export class DatabaseService {
     if (error) throw error
   }
 
+  async deleteMetric(metricId: string) {
+    // First delete all measurements for this metric
+    const { error: measurementsError } = await this.supabase
+      .from('measurements')
+      .delete()
+      .eq('metric_id', metricId)
+    
+    if (measurementsError) throw measurementsError
+    
+    // Then delete the metric itself
+    const { error } = await this.supabase
+      .from('metrics')
+      .delete()
+      .eq('id', metricId)
+    
+    if (error) throw error
+  }
+
+  async deleteMeasurement(metricId: string, date: string) {
+    const { error } = await this.supabase
+      .from('measurements')
+      .delete()
+      .eq('metric_id', metricId)
+      .eq('date', date)
+    
+    if (error) throw error
+  }
+
   // ========== EXERCISES ==========
   async getExercises(userId: string) {
     const { data, error } = await this.supabase

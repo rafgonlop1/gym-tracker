@@ -20,5 +20,8 @@
       "Bash(openssl rand:*)"
     ],
     "deny": []
-  }
+  },
+  "enabledMcpjsonServers": [
+    "supabase"
+  ]
 }

@@ -5,6 +5,7 @@ import { appReducer } from "~/state/reducer";
 import { workoutTypes } from "~/data/defaults";
 import { DailySheetForm } from "~/components/DailySheetForm";
 import { AddMetricForm } from "~/components/AddMetricForm";
+import { MetricsManager } from "~/components/MetricsManager";
 import { ExercisesView } from "~/components/ExercisesView";
 import { CalendarView } from "~/components/CalendarView";
 import { ProgressView } from "~/components/ProgressView";
@@ -44,6 +45,7 @@ export default function Dashboard() {
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [persistedWorkoutIds, setPersistedWorkoutIds] = useState(new Set<string>());
   const [deletedWorkoutIds, setDeletedWorkoutIds] = useState(new Set<string>());
+  const [workoutUpdateTrigger, setWorkoutUpdateTrigger] = useState(0);
 
   // Load user data from Supabase
   useEffect(() => {
@@ -69,7 +71,7 @@ export default function Dashboard() {
       
       // Find sessions that have been deleted (were persisted but no longer in state)
       const deletedSessionIds = Array.from(persistedWorkoutIds).filter(id => 
-        !currentSessionIds.has(id) && !deletedWorkoutIds.has(id)
+        !currentSessionIds.has(id)
       );
       
       console.log('Checking for deletions:', {
@@ -81,14 +83,10 @@ export default function Dashboard() {
       // Delete sessions from database
       for (const sessionId of deletedSessionIds) {
         try {
-          // Only delete from database if it's a real database ID (not a temp ID)
-          if (sessionId && !sessionId.includes('-')) {
-            console.log('Attempting to delete workout session:', sessionId);
-            await db.deleteWorkoutSession(sessionId);
-            console.log('Workout session deleted from database:', sessionId);
-          } else {
-            console.log('Skipping deletion of temp ID:', sessionId);
-          }
+          // Delete from database
+          console.log('Attempting to delete workout session:', sessionId);
+          await db.deleteWorkoutSession(sessionId);
+          console.log('Workout session deleted from database:', sessionId);
           
           // Mark as deleted to avoid processing again
           setDeletedWorkoutIds(prev => new Set(prev).add(sessionId));
@@ -102,18 +100,25 @@ export default function Dashboard() {
         }
       }
       
-      // Find sessions that haven't been persisted yet
-      const unpersisted = state.workoutSessions.filter(session => 
-        !persistedWorkoutIds.has(session.id) && session.completed
-      );
+      // Find all completed sessions that need to be persisted or updated
+      const completedSessions = state.workoutSessions.filter(session => session.completed);
       
-      for (const session of unpersisted) {
+      for (const session of completedSessions) {
         try {
-          // Check if this is an edit of an existing session by checking if it came from database
-          const isEditing = session.id && !session.id.includes('-'); // Database IDs don't have hyphens
+          // Check if this session is already persisted
+          const alreadyPersisted = persistedWorkoutIds.has(session.id);
+          // If it's already persisted, it means we're updating an existing session
+          const isEditing = alreadyPersisted;
           
-          if (isEditing) {
-            // Update existing session
+          if (isEditing && alreadyPersisted) {
+            // Update existing session - this handles the edit case
+            console.log('Updating workout session:', session.id, {
+              endTime: session.endTime,
+              totalDuration: session.totalDuration,
+              completed: session.completed,
+              exercisesCount: session.exercises?.length || 0,
+              cardioCount: session.cardioActivities?.length || 0
+            });
             await db.updateWorkoutSession(session.id, {
               endTime: session.endTime,
               totalDuration: session.totalDuration,
@@ -122,7 +127,7 @@ export default function Dashboard() {
               cardioActivities: session.cardioActivities || []
             });
             console.log('Workout session updated in database:', session.id);
-          } else {
+          } else if (!alreadyPersisted) {
             // Create new session in database
             const { date, workoutType, startTime, endTime, totalDuration, completed, exercises, cardioActivities } = session;
             const newSession = await db.createWorkoutSession(user.id, {
@@ -136,10 +141,10 @@ export default function Dashboard() {
               cardioActivities: cardioActivities || []
             });
             console.log('Workout session saved to database:', newSession.id);
+            
+            // Mark this session as persisted only for new sessions
+            setPersistedWorkoutIds(prev => new Set(prev).add(session.id));
           }
-          
-          // Mark this session as persisted
-          setPersistedWorkoutIds(prev => new Set(prev).add(session.id));
         } catch (error) {
           console.error('Error saving workout session to database:', error);
           // You might want to show a toast notification here
@@ -148,7 +153,7 @@ export default function Dashboard() {
     };
 
     persistWorkoutSessions();
-  }, [state.workoutSessions, user, isLoadingData, persistedWorkoutIds, deletedWorkoutIds]);
+  }, [state.workoutSessions, state.lastWorkoutUpdate, user, isLoadingData, persistedWorkoutIds, deletedWorkoutIds]);
 
   const loadPublicData = async () => {
     const supabase = createSupabaseClient();
@@ -325,6 +330,8 @@ export default function Dashboard() {
         return <ViewTransition><DailySheetForm state={state} dispatch={dispatch} /></ViewTransition>;
       case "add-metric":
         return <ViewTransition><AddMetricForm dispatch={dispatch} /></ViewTransition>;
+      case "manage-metrics":
+        return <ViewTransition><MetricsManager state={state} dispatch={dispatch} /></ViewTransition>;
       case "exercises":
         return <ViewTransition><ExercisesView state={state} dispatch={dispatch} /></ViewTransition>;
       case "calendar":
@@ -390,6 +397,13 @@ export default function Dashboard() {
               <p className="text-xl font-bold text-blue-600 dark:text-blue-400">Hace 2h</p>
             </div>
           </div>
+        </div>
+
+        {/* Metrics Section Header */}
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            📊 Métricas de Salud y Progreso
+          </h2>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">

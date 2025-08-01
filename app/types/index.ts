@@ -149,6 +149,7 @@ export interface AppState {
   workoutSessions: WorkoutSession[];
   dailyPhotos: DailyPhotos[];
   templates: WorkoutTemplate[];
+  lastWorkoutUpdate?: number;
 }
 
 export type AppDispatch = (action: any) => void;

@@ -402,33 +402,66 @@ export const DailySheetForm = ({ state, dispatch }: DailySheetFormProps) => {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="md:col-span-1">
-                  <label className="block text-sm font-medium mb-1">
-                    Valor ({metric.unit})
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={measurements[metric.id]?.value || ""}
-                    onChange={(e) => handleValueChange(metric.id, 'value', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white bg-white"
-                    placeholder={`ej. ${getLatestValue(metric) || "0"}`}
-                  />
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="md:col-span-1">
+                    <label className="block text-sm font-medium mb-1">
+                      Valor ({metric.unit})
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={measurements[metric.id]?.value || ""}
+                      onChange={(e) => handleValueChange(metric.id, 'value', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white bg-white"
+                      placeholder={`ej. ${getLatestValue(metric) || "0"}`}
+                    />
+                  </div>
+                  
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium mb-1">
+                      Notas (opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={measurements[metric.id]?.notes || ""}
+                      onChange={(e) => handleValueChange(metric.id, 'notes', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white bg-white"
+                      placeholder="Estado de ánimo, observaciones..."
+                    />
+                  </div>
                 </div>
                 
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium mb-1">
-                    Notas (opcional)
-                  </label>
-                  <input
-                    type="text"
-                    value={measurements[metric.id]?.notes || ""}
-                    onChange={(e) => handleValueChange(metric.id, 'notes', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white bg-white"
-                    placeholder="Estado de ánimo, observaciones..."
-                  />
-                </div>
+                {/* Show delete button if there's an existing measurement */}
+                {metric.measurements.find(m => m.date === date) && (
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (confirm('¿Estás seguro de que quieres eliminar esta medición?')) {
+                          try {
+                            const supabase = createSupabaseClient();
+                            const db = new DatabaseService(supabase);
+                            await db.deleteMeasurement(metric.id, date);
+                            dispatch({ type: "DELETE_MEASUREMENT", metricId: metric.id, date });
+                            setMeasurements(prev => {
+                              const updated = { ...prev };
+                              delete updated[metric.id];
+                              return updated;
+                            });
+                          } catch (error) {
+                            console.error('Error deleting measurement:', error);
+                            setError('Error al eliminar la medición');
+                          }
+                        }
+                      }}
+                      className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-colors flex items-center space-x-1"
+                    >
+                      <span>🗑️</span>
+                      <span>Eliminar medición de este día</span>
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ))}

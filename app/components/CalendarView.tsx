@@ -442,44 +442,76 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Valor ({metric.unit})
-                        </label>
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={currentValue}
-                          onChange={(e) => setFormData(prev => ({
-                            ...prev,
-                            [metric.id]: {
-                              ...prev[metric.id],
-                              value: e.target.value
-                            }
-                          }))}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
-                          placeholder={`ej. ${latestValue || '0'}`}
-                        />
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Valor ({metric.unit})
+                          </label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={currentValue}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              [metric.id]: {
+                                ...prev[metric.id],
+                                value: e.target.value
+                              }
+                            }))}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                            placeholder={`ej. ${latestValue || '0'}`}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Notas (opcional)
+                          </label>
+                          <input
+                            type="text"
+                            value={currentNotes}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              [metric.id]: {
+                                ...prev[metric.id],
+                                notes: e.target.value
+                              }
+                            }))}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                            placeholder="Notas adicionales..."
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Notas (opcional)
-                        </label>
-                        <input
-                          type="text"
-                          value={currentNotes}
-                          onChange={(e) => setFormData(prev => ({
-                            ...prev,
-                            [metric.id]: {
-                              ...prev[metric.id],
-                              notes: e.target.value
-                            }
-                          }))}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
-                          placeholder="Notas adicionales..."
-                        />
-                      </div>
+                      
+                      {/* Show delete button if there's an existing measurement */}
+                      {metric.measurements.find(m => m.date === selectedDay) && (
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (confirm('¿Estás seguro de que quieres eliminar esta medición?')) {
+                                try {
+                                  const supabase = createSupabaseClient();
+                                  const db = new DatabaseService(supabase);
+                                  await db.deleteMeasurement(metric.id, selectedDay);
+                                  dispatch({ type: "DELETE_MEASUREMENT", metricId: metric.id, date: selectedDay });
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    [metric.id]: { value: '', notes: '' }
+                                  }));
+                                } catch (error) {
+                                  console.error('Error deleting measurement:', error);
+                                  setError('Error al eliminar la medición');
+                                }
+                              }
+                            }}
+                            className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-colors flex items-center space-x-1"
+                          >
+                            <span>🗑️</span>
+                            <span>Eliminar medición</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );

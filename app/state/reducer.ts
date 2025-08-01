@@ -56,6 +56,26 @@ export function appReducer(state: AppState, action: any): AppState {
         })
       };
     
+    case "DELETE_METRIC":
+      return {
+        ...state,
+        metrics: state.metrics.filter(metric => metric.id !== action.metricId)
+      };
+    
+    case "DELETE_MEASUREMENT":
+      return {
+        ...state,
+        metrics: state.metrics.map(metric => {
+          if (metric.id === action.metricId) {
+            return {
+              ...metric,
+              measurements: metric.measurements.filter(m => m.date !== action.date)
+            };
+          }
+          return metric;
+        })
+      };
+    
     case "ADD_EXERCISE":
       const newExercise: Exercise = {
         id: action.exercise.name.toLowerCase().replace(/\s+/g, "-") + "-" + Date.now(),
@@ -236,7 +256,8 @@ export function appReducer(state: AppState, action: any): AppState {
         currentWorkoutSession: undefined,
         selectedWorkoutType: undefined,
         selectedDate: undefined,
-        view: isEditing ? "daily-sheet" : "dashboard"
+        view: isEditing ? "daily-sheet" : "dashboard",
+        lastWorkoutUpdate: Date.now() // Add timestamp to trigger updates
       };
     
     case "EDIT_WORKOUT_SESSION":
@@ -267,7 +288,8 @@ export function appReducer(state: AppState, action: any): AppState {
       console.log('After deletion:', filteredSessions.map(w => w.id));
       return {
         ...state,
-        workoutSessions: filteredSessions
+        workoutSessions: filteredSessions,
+        lastWorkoutUpdate: Date.now() // Add timestamp to trigger database sync
       };
     
     case "REMOVE_EXERCISE_FROM_SESSION":

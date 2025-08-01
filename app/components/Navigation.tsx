@@ -115,6 +115,17 @@ export function Navigation({ currentView, dispatch, metricsCount, onCollapsedCha
                 <span className={`text-xl ${isCollapsed ? '' : 'mr-3'}`}>➕</span>
                 {!isCollapsed && <span className="animate-fadeIn">Nueva Métrica</span>}
               </button>
+
+              {metricsCount > 0 && (
+                <button
+                  onClick={() => dispatch({ type: "SET_VIEW", view: "manage-metrics" })}
+                  className={`w-full flex items-center ${isCollapsed ? 'justify-center' : ''} px-3 py-2.5 text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 hover:text-purple-600 dark:hover:text-purple-400 transition-colors mt-1`}
+                  title={isCollapsed ? "Gestionar Métricas" : ""}
+                >
+                  <span className={`text-xl ${isCollapsed ? '' : 'mr-3'}`}>⚙️</span>
+                  {!isCollapsed && <span className="animate-fadeIn">Gestionar Métricas</span>}
+                </button>
+              )}
               
               <button
                 onClick={handleLogout}
