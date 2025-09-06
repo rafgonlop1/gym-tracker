@@ -157,7 +157,7 @@ export const DailySheetForm = ({ state, dispatch }: DailySheetFormProps) => {
     <div className="max-w-2xl mx-auto">
       <div className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+          <h3 className="hidden lg:block text-xl font-semibold text-gray-900 dark:text-white">
             📋 Ficha Diaria
           </h3>
           <input

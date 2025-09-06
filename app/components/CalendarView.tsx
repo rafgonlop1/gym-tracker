@@ -574,92 +574,56 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
     <div className="max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+        <h3 className="hidden lg:block text-2xl font-bold text-gray-900 dark:text-white">
           📅 Calendario - Ficha Diaria
         </h3>
-        <div className="text-sm text-gray-600 dark:text-gray-400">
+        <div className="hidden lg:block text-sm text-gray-600 dark:text-gray-400">
           Haz click en cualquier día para editarlo
         </div>
       </div>
 
       {/* Monthly Stats - Moved to top */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 mb-6 shadow-lg">
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-300 dark:border-gray-600 ring-1 ring-black/5 dark:ring-white/10 mb-6 shadow-md">
         <h5 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
           📊 Estadísticas del Mes
         </h5>
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-          {(() => {
-            const monthDates = Array.from({ length: daysInMonth }, (_, i) => {
-              return getDateString(currentYear, currentMonth, i + 1);
-            });
-            
-            const daysWithData = monthDates.filter(date => {
-              const dayData = dailyDataMap.get(date);
-              return dayData && (dayData.metrics.length > 0 || dayData.workouts.length > 0 || dayData.photos.length > 0);
-            }).length;
-            const totalMeasurements = monthDates.reduce((total, date) => {
-              const dayData = dailyDataMap.get(date);
-              return total + (dayData?.metrics.length || 0);
-            }, 0);
-            const totalWorkouts = monthDates.reduce((total, date) => {
-              const dayData = dailyDataMap.get(date);
-              return total + (dayData?.workouts.length || 0);
-            }, 0);
-            const totalPhotos = monthDates.reduce((total, date) => {
-              const dayData = dailyDataMap.get(date);
-              return total + (dayData?.photos.length || 0);
-            }, 0);
-            
-            return (
-              <>
-                <div className="text-center">
-                  <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">
-                    {daysWithData}/{daysInMonth}
-                  </p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Días con datos
-                  </p>
+        {(() => {
+          const monthDates = Array.from({ length: daysInMonth }, (_, i) => getDateString(currentYear, currentMonth, i + 1));
+          const daysWithData = monthDates.filter(date => {
+            const dayData = dailyDataMap.get(date);
+            return dayData && (dayData.metrics.length > 0 || dayData.workouts.length > 0 || dayData.photos.length > 0);
+          }).length;
+          const totalMeasurements = monthDates.reduce((total, date) => total + (dailyDataMap.get(date)?.metrics.length || 0), 0);
+          const totalWorkouts = monthDates.reduce((total, date) => total + (dailyDataMap.get(date)?.workouts.length || 0), 0);
+          const totalPhotos = monthDates.reduce((total, date) => total + (dailyDataMap.get(date)?.photos.length || 0), 0);
+          const avgPerDay = daysWithData > 0 ? ((totalMeasurements + totalWorkouts + totalPhotos) / daysWithData).toFixed(1) : '0';
+
+          const stats = [
+            { label: 'Días con datos', value: `${daysWithData}/${daysInMonth}`, color: 'text-blue-600 dark:text-blue-400', icon: '📅' },
+            { label: 'Mediciones', value: totalMeasurements, color: 'text-green-600 dark:text-green-400', icon: '📊' },
+            { label: 'Entrenamientos', value: totalWorkouts, color: 'text-orange-600 dark:text-orange-400', icon: '🏋️' },
+            { label: 'Fotografías', value: totalPhotos, color: 'text-pink-600 dark:text-pink-400', icon: '📸' },
+            { label: 'Prom. actividades/día', value: avgPerDay, color: 'text-purple-600 dark:text-purple-400', icon: '➕' },
+          ];
+
+          return (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {stats.map((s, i) => (
+                <div key={i} className="rounded-lg border border-gray-200 dark:border-gray-600 ring-1 ring-black/5 dark:ring-white/10 bg-gray-50 dark:bg-gray-900/20 p-3 text-center">
+                  <div className="text-xs text-gray-600 dark:text-gray-400 flex items-center justify-center gap-1 mb-1">
+                    <span>{s.icon}</span>
+                    <span>{s.label}</span>
+                  </div>
+                  <div className={`text-2xl font-bold ${s.color}`}>{s.value as any}</div>
                 </div>
-                <div className="text-center">
-                  <p className="text-3xl font-bold text-green-600 dark:text-green-400">
-                    {totalMeasurements}
-                  </p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Total mediciones
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-3xl font-bold text-orange-600 dark:text-orange-400">
-                    {totalWorkouts}
-                  </p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Total entrenamientos
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-3xl font-bold text-pink-600 dark:text-pink-400">
-                    {totalPhotos}
-                  </p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Total fotografías
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">
-                    {daysWithData > 0 ? ((totalMeasurements + totalWorkouts + totalPhotos) / daysWithData).toFixed(1) : '0'}
-                  </p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Promedio actividades/día
-                  </p>
-                </div>
-              </>
-            );
-          })()}
-        </div>
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Month Navigation */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 mb-6 shadow-lg">
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-300 dark:border-gray-600 ring-1 ring-black/5 dark:ring-white/10 mb-6 shadow-md">
         <div className="flex items-center justify-between mb-6">
           <button
             onClick={() => navigateMonth('prev')}

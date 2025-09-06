@@ -135,6 +135,8 @@ export function TimerView({ dispatch }: TimerViewProps) {
                     ? "bg-blue-500 text-white"
                     : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600"
                 } disabled:opacity-50`}
+                aria-pressed={timerMode === 'rest'}
+                aria-label="Rest Timer"
               >
                 Rest Timer
               </button>
@@ -146,6 +148,8 @@ export function TimerView({ dispatch }: TimerViewProps) {
                     ? "bg-blue-500 text-white"
                     : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600"
                 } disabled:opacity-50`}
+                aria-pressed={timerMode === 'tabata'}
+                aria-label="Tabata"
               >
                 Tabata
               </button>
@@ -173,7 +177,7 @@ export function TimerView({ dispatch }: TimerViewProps) {
                       className="text-7xl font-mono font-bold bg-transparent text-white text-center w-64 outline-none border-b-2 border-white/50"
                     />
                   ) : (
-                    <div className="text-7xl font-mono font-bold cursor-pointer" title="Click to edit">
+                    <div className="text-7xl font-mono font-bold cursor-pointer" title="Click to edit" aria-label="Edit rest time">
                       {formatTime(displayedTime)}
                     </div>
                   )}

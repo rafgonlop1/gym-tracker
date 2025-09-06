@@ -64,6 +64,7 @@ export function Navigation({ currentView, dispatch, metricsCount, onCollapsedCha
               className={`p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${
                 isCollapsed ? 'absolute right-2' : ''
               }`}
+              aria-label="Toggle sidebar"
             >
               <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
@@ -85,6 +86,8 @@ export function Navigation({ currentView, dispatch, metricsCount, onCollapsedCha
                     : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
                 }`}
                 title={isCollapsed ? item.label : ""}
+                aria-current={isActive(item.id) ? 'page' : undefined}
+                aria-label={item.label}
               >
                 <span className={`text-xl ${isCollapsed ? '' : 'mr-3'}`}>{item.icon}</span>
                 {!isCollapsed && (
@@ -110,6 +113,7 @@ export function Navigation({ currentView, dispatch, metricsCount, onCollapsedCha
                 onClick={() => dispatch({ type: "SET_VIEW", view: "add-metric" })}
                 className={`w-full flex items-center ${isCollapsed ? 'justify-center' : ''} px-3 py-2.5 text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors`}
                 title={isCollapsed ? "Nueva Métrica" : ""}
+                aria-label="Nueva Métrica"
               >
                 <span className={`text-xl ${isCollapsed ? '' : 'mr-3'}`}>➕</span>
                 {!isCollapsed && <span className="animate-fadeIn">Nueva Métrica</span>}
@@ -120,6 +124,7 @@ export function Navigation({ currentView, dispatch, metricsCount, onCollapsedCha
                   onClick={() => dispatch({ type: "SET_VIEW", view: "manage-metrics" })}
                   className={`w-full flex items-center ${isCollapsed ? 'justify-center' : ''} px-3 py-2.5 text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 hover:text-purple-600 dark:hover:text-purple-400 transition-colors mt-1`}
                   title={isCollapsed ? "Gestionar Métricas" : ""}
+                  aria-label="Gestionar Métricas"
                 >
                   <span className={`text-xl ${isCollapsed ? '' : 'mr-3'}`}>⚙️</span>
                   {!isCollapsed && <span className="animate-fadeIn">Gestionar Métricas</span>}
@@ -130,6 +135,7 @@ export function Navigation({ currentView, dispatch, metricsCount, onCollapsedCha
                 onClick={handleLogout}
                 className={`w-full flex items-center ${isCollapsed ? 'justify-center' : ''} px-3 py-2.5 text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400 transition-colors mt-1`}
                 title={isCollapsed ? "Cerrar sesión" : ""}
+                aria-label="Cerrar sesión"
               >
                 <span className={`text-xl ${isCollapsed ? '' : 'mr-3'}`}>🚪</span>
                 {!isCollapsed && <span className="animate-fadeIn">Cerrar sesión</span>}
@@ -160,7 +166,7 @@ export function Navigation({ currentView, dispatch, metricsCount, onCollapsedCha
       </aside>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 z-50">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 z-50" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className="grid grid-cols-5 gap-1 px-2 py-2">
           {navItems.slice(0, 5).map((item) => (
             <button
@@ -171,6 +177,8 @@ export function Navigation({ currentView, dispatch, metricsCount, onCollapsedCha
                   ? "bg-gray-100 dark:bg-gray-800 text-blue-600 dark:text-blue-400"
                   : "text-gray-600 dark:text-gray-400"
               }`}
+              aria-current={isActive(item.id) ? 'page' : undefined}
+              aria-label={item.label}
             >
               <span className="text-2xl mb-1">{item.icon}</span>
               <span className="text-xs">{item.label}</span>

@@ -63,6 +63,44 @@ export function WorkoutActive({ state, dispatch }: WorkoutActiveProps) {
   const otherExercises = state.exercises.filter(exercise => exercise.category !== primaryCategory);
   const availableExercises = [...primaryExercises, ...otherExercises];
 
+  // Track which exercise history panels are open (by exercise index)
+  const [openHistory, setOpenHistory] = useState<Record<string, boolean>>({});
+
+  const toggleHistory = (key: string) => {
+    setOpenHistory(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  // Helpers to fetch previous history for an exercise
+  const formatSetSummary = (sets: ExerciseSet[]): string => {
+    if (!sets || sets.length === 0) return "—";
+    return sets
+      .map(s => `${(s.weight ?? 0)}×${s.reps ?? 0}${s.rpe ? `@${s.rpe}` : ''}`)
+      .join(' • ');
+  };
+
+  const getRecentExerciseHistory = (exercise: WorkoutExercise, maxEntries = 5) => {
+    // Sort completed sessions by start time desc
+    const sessions = (state.workoutSessions || [])
+      .filter(s => s.completed)
+      .slice()
+      .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+
+    const entries: { date: string; sets: ExerciseSet[] }[] = [];
+
+    for (const session of sessions) {
+      const match = session.exercises?.find(ex => (
+        (exercise.exerciseId && ex.exerciseId === exercise.exerciseId) ||
+        ex.exerciseName === exercise.exerciseName
+      ));
+      if (match) {
+        entries.push({ date: session.date, sets: match.sets });
+      }
+      if (entries.length >= maxEntries) break;
+    }
+
+    return entries;
+  };
+
   // State for exercise search and filtering
   const [searchTerm, setSearchTerm] = useState('');
   const [showAllExercises, setShowAllExercises] = useState(false);
@@ -208,42 +246,42 @@ export function WorkoutActive({ state, dispatch }: WorkoutActiveProps) {
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 py-2">
+            <div className="flex items-start sm:items-center gap-3">
               <span className="text-2xl">{workoutTypeConfig?.icon}</span>
               <div>
-                <h1 className="text-lg font-bold text-gray-900 dark:text-white">
-                  {isEditing ? "Editando" : ""} {workoutTypeConfig?.name} Workout
-                </h1>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {new Date(currentWorkout.startTime).toLocaleTimeString()}
-                  {isEditing && <span className="ml-2 px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs rounded">Editando</span>}
+                <div className="flex items-center flex-wrap gap-2">
+                  <h1 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">
+                    {workoutTypeConfig?.name} Workout
+                  </h1>
+                  {isEditing && (
+                    <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs rounded">Editando</span>
+                  )}
+                </div>
+                <div className="mt-1 flex items-center flex-wrap gap-2 text-xs">
+                  <span className="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+                    {new Date(currentWorkout.startTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
                   {!isEditing && currentDuration > 0 && (
-                    <span className="ml-2 px-2 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 text-xs rounded">
+                    <span className="px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
                       ⏱️ {formatLiveDuration(currentDuration)}
                     </span>
                   )}
-                </p>
+                </div>
               </div>
             </div>
-            <div className="flex items-center space-x-3">
-              {!isEditing && currentDuration > 0 && (
-                <div className="text-right text-sm">
-                  <p className="text-gray-600 dark:text-gray-400">Tiempo transcurrido</p>
-                  <p className="font-semibold text-gray-900 dark:text-white">
-                    {formatLiveDuration(currentDuration)}
-                  </p>
-                </div>
-              )}
+            <div className="flex items-center gap-2 self-end sm:self-auto">
               <button
                 onClick={finishWorkout}
-                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors"
+                className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"
+                aria-label={isEditing ? 'Guardar cambios' : 'Finalizar entrenamiento'}
               >
-                {isEditing ? "Guardar Cambios" : "Finalizar"}
+                {isEditing ? "Guardar" : "Finalizar"}
               </button>
               <button
                 onClick={cancelWorkout}
-                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-lg transition-colors"
+                className="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded-lg transition-colors"
+                aria-label={isEditing ? 'Volver' : 'Cancelar'}
               >
                 {isEditing ? "Volver" : "Cancelar"}
               </button>
@@ -398,10 +436,32 @@ export function WorkoutActive({ state, dispatch }: WorkoutActiveProps) {
             <div className="space-y-4">
               {currentWorkout.exercises?.map((exercise, exerciseIndex) => (
                 <div key={`${exercise.exerciseId}-${exerciseIndex}`} className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm">
-                  <div className="flex justify-between items-start mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                      {exercise.exerciseName}
-                    </h3>
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                          {exercise.exerciseName}
+                        </h3>
+                        {/* History toggle on mobile */}
+                        <button
+                          onClick={() => toggleHistory(`${exercise.exerciseId}-${exerciseIndex}`)}
+                          className="px-2 py-0.5 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                        >
+                          Historial
+                        </button>
+                      </div>
+                      {/* Inline last session summary */}
+                      {(() => {
+                        const history = getRecentExerciseHistory(exercise, 1);
+                        if (history.length === 0) return null;
+                        const last = history[0];
+                        return (
+                          <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Última vez ({new Date(last.date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}): {formatSetSummary(last.sets)}
+                          </div>
+                        );
+                      })()}
+                    </div>
                     <div className="flex space-x-2">
                       <button
                         onClick={() => addSetToExercise(exerciseIndex)}
@@ -418,62 +478,173 @@ export function WorkoutActive({ state, dispatch }: WorkoutActiveProps) {
                       </button>
                     </div>
                   </div>
-
+                  {/* Collapsible history list */}
+                  {openHistory[`${exercise.exerciseId}-${exerciseIndex}`] && (
+                    <div className="mb-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700">
+                      {(() => {
+                        const history = getRecentExerciseHistory(exercise, 5);
+                        if (history.length === 0) {
+                          return <p className="text-xs text-gray-500 dark:text-gray-300">Sin historial previo.</p>;
+                        }
+                        return (
+                          <ul className="space-y-1 text-xs text-gray-700 dark:text-gray-200">
+                            {history.map((h, idx) => (
+                              <li key={idx} className="flex items-center justify-between">
+                                <span className="text-gray-500 dark:text-gray-300">
+                                  {new Date(h.date).toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short' })}
+                                </span>
+                                <span className="font-medium">{formatSetSummary(h.sets)}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        );
+                      })()}
+                    </div>
+                  )}
+                  
                   <div className="space-y-3">
                     {exercise.sets.map((set, setIndex) => (
-                      <div key={setIndex} className="grid grid-cols-6 gap-3 items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                        <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Set {set.setNumber}
+                      <div key={setIndex} className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Set {set.setNumber}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <label className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-300">
+                              <input
+                                type="checkbox"
+                                checked={set.completed}
+                                onChange={(e) => updateSet(exerciseIndex, setIndex, { completed: e.target.checked })}
+                                className="w-4 h-4 text-green-600 border-gray-300 dark:border-gray-600 rounded focus:ring-green-500"
+                                aria-label={`Mark set ${set.setNumber} as completed`}
+                              />
+                              <span>Done</span>
+                            </label>
+                            <button
+                              onClick={() => removeSetFromExercise(exerciseIndex, setIndex)}
+                              className="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded transition-colors"
+                              title="Eliminar set"
+                              aria-label={`Eliminar set ${set.setNumber}`}
+                            >
+                              🗑️
+                            </button>
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Peso (kg)</label>
-                          <input
-                            type="number"
-                            value={set.weight || ''}
-                            onChange={(e) => updateSet(exerciseIndex, setIndex, { weight: parseFloat(e.target.value) || 0 })}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                            placeholder="0"
-                          />
+
+                        <div className="grid grid-cols-3 gap-2 sm:grid-cols-6 sm:gap-3">
+                          <div className="col-span-1 sm:col-span-2">
+                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Peso (kg)</label>
+                            <div className="flex items-center rounded border border-gray-300 dark:border-gray-600 overflow-hidden bg-white dark:bg-gray-800">
+                              <button
+                                onClick={() => updateSet(exerciseIndex, setIndex, { weight: Math.max(0, (set.weight || 0) - 2.5) })}
+                                className="px-2 py-1 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                aria-label="Decrease weight"
+                              >
+                                −
+                              </button>
+                              <input
+                                inputMode="decimal"
+                                type="number"
+                                step="0.5"
+                                value={set.weight ?? ''}
+                                onChange={(e) => updateSet(exerciseIndex, setIndex, { weight: parseFloat(e.target.value) || 0 })}
+                                className="w-full px-2 py-1 text-center text-sm bg-transparent text-gray-900 dark:text-white"
+                                placeholder="0"
+                              />
+                              <button
+                                onClick={() => updateSet(exerciseIndex, setIndex, { weight: (set.weight || 0) + 2.5 })}
+                                className="px-2 py-1 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                aria-label="Increase weight"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="col-span-1 sm:col-span-2">
+                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Reps</label>
+                            <div className="flex items-center rounded border border-gray-300 dark:border-gray-600 overflow-hidden bg-white dark:bg-gray-800">
+                              <button
+                                onClick={() => updateSet(exerciseIndex, setIndex, { reps: Math.max(0, (set.reps || 0) - 1) })}
+                                className="px-2 py-1 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                aria-label="Decrease reps"
+                              >
+                                −
+                              </button>
+                              <input
+                                type="number"
+                                value={set.reps ?? ''}
+                                onChange={(e) => updateSet(exerciseIndex, setIndex, { reps: parseInt(e.target.value) || 0 })}
+                                className="w-full px-2 py-1 text-center text-sm bg-transparent text-gray-900 dark:text-white"
+                                placeholder="0"
+                              />
+                              <button
+                                onClick={() => updateSet(exerciseIndex, setIndex, { reps: (set.reps || 0) + 1 })}
+                                className="px-2 py-1 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                aria-label="Increase reps"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="col-span-1 sm:col-span-2">
+                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">RPE</label>
+                            <div className="flex items-center rounded border border-gray-300 dark:border-gray-600 overflow-hidden bg-white dark:bg-gray-800">
+                              <button
+                                onClick={() => updateSet(exerciseIndex, setIndex, { rpe: Math.max(1, (set.rpe || 1) - 1) })}
+                                className="px-2 py-1 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                aria-label="Decrease RPE"
+                              >
+                                −
+                              </button>
+                              <input
+                                type="number"
+                                min="1"
+                                max="10"
+                                value={set.rpe ?? ''}
+                                onChange={(e) => updateSet(exerciseIndex, setIndex, { rpe: parseInt(e.target.value) || 1 })}
+                                className="w-full px-2 py-1 text-center text-sm bg-transparent text-gray-900 dark:text-white"
+                                placeholder="5"
+                              />
+                              <button
+                                onClick={() => updateSet(exerciseIndex, setIndex, { rpe: Math.min(10, (set.rpe || 1) + 1) })}
+                                className="px-2 py-1 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                aria-label="Increase RPE"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Reps</label>
-                          <input
-                            type="number"
-                            value={set.reps || ''}
-                            onChange={(e) => updateSet(exerciseIndex, setIndex, { reps: parseInt(e.target.value) || 0 })}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                            placeholder="0"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">RPE</label>
-                          <input
-                            type="number"
-                            min="1"
-                            max="10"
-                            value={set.rpe || ''}
-                            onChange={(e) => updateSet(exerciseIndex, setIndex, { rpe: parseInt(e.target.value) || 1 })}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                            placeholder="5"
-                          />
-                        </div>
-                        <div className="flex justify-center">
-                          <input
-                            type="checkbox"
-                            checked={set.completed}
-                            onChange={(e) => updateSet(exerciseIndex, setIndex, { completed: e.target.checked })}
-                            className="w-5 h-5 text-green-600 border-gray-300 dark:border-gray-600 rounded focus:ring-green-500"
-                          />
-                        </div>
-                        <div className="flex justify-center">
-                          <button
-                            onClick={() => removeSetFromExercise(exerciseIndex, setIndex)}
-                            className="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded transition-colors"
-                            title="Eliminar set"
-                          >
-                            🗑️
-                          </button>
-                        </div>
+
+                        {/* Quick actions */}
+                        {setIndex === exercise.sets.length - 1 && (
+                          <div className="mt-2 flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                const last = exercise.sets[exercise.sets.length - 1];
+                                const cloned = {
+                                  setNumber: exercise.sets.length + 1,
+                                  reps: last?.reps || 8,
+                                  weight: last?.weight || 0,
+                                  rpe: last?.rpe || 5,
+                                  completed: false
+                                } as ExerciseSet;
+                                dispatch({ type: "ADD_SET_TO_EXERCISE", exerciseIndex, set: cloned });
+                              }}
+                              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-lg transition-colors"
+                            >
+                              Duplicar último set
+                            </button>
+                            <button
+                              onClick={() => addSetToExercise(exerciseIndex)}
+                              className="px-3 py-1 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-100 text-xs rounded-lg"
+                            >
+                              + Set
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

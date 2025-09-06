@@ -32,7 +32,7 @@ export interface ExerciseCategory {
   day?: string;
 }
 
-export type AppView = "dashboard" | "daily-sheet" | "add-metric" | "exercises" | "calendar" | "progress" | "timer" | "workout-selection" | "workout-active" | "templates";
+export type AppView = "dashboard" | "daily-sheet" | "add-metric" | "manage-metrics" | "exercises" | "calendar" | "progress" | "timer" | "workout-selection" | "workout-active" | "templates";
 
 export type WorkoutType = "push" | "pull" | "legs" | "plyometrics" | "hiit" | "cardio";
 

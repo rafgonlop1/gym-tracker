@@ -314,6 +314,21 @@ export default function Dashboard() {
 
   const currentStreak = calculateCurrentStreak();
 
+  // Mobile header metadata per view
+  const viewHeaderMap: Record<string, { icon: string; title: string }> = {
+    dashboard: { icon: '💪', title: 'Gym Tracker' },
+    'daily-sheet': { icon: '📋', title: 'Ficha Diaria' },
+    'add-metric': { icon: '➕', title: 'Nueva Métrica' },
+    exercises: { icon: '💪', title: 'Ejercicios' },
+    calendar: { icon: '📅', title: 'Calendario - Ficha Diaria' },
+    progress: { icon: '📈', title: 'Progreso' },
+    timer: { icon: '⏱️', title: 'Timer' },
+    'workout-selection': { icon: '🏋️', title: 'Iniciar Entrenamiento' },
+    'workout-active': { icon: '🏃', title: 'Entrenamiento Activo' },
+    templates: { icon: '📄', title: 'Plantillas' },
+  };
+  const activeHeader = viewHeaderMap[state.view] || viewHeaderMap.dashboard;
+
   const renderContent = () => {
     switch (state.view) {
       case "daily-sheet":
@@ -335,7 +350,7 @@ export default function Dashboard() {
       case "workout-active":
         return <ViewTransition><WorkoutActive state={state} dispatch={dispatch} /></ViewTransition>;
       case "templates":
-        return <ViewTransition><TemplateManager templates={state.templates} dispatch={dispatch} exercises={state.exercises} exerciseCategories={state.exerciseCategories} userId={user.id} /></ViewTransition>;
+        return <ViewTransition><TemplateManager templates={state.templates} dispatch={dispatch} exercises={state.exercises} exerciseCategories={state.exerciseCategories} userId={user!.id} /></ViewTransition>;
       default:
         return renderDashboard();
     }
@@ -343,7 +358,7 @@ export default function Dashboard() {
 
   const renderDashboard = () => (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950">
-      <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md shadow-lg border-b border-gray-200/50 dark:border-gray-700/50 sticky top-0 z-50">
+      <header className="hidden lg:block bg-white/80 dark:bg-gray-900/80 backdrop-blur-md shadow-lg border-b border-gray-200/50 dark:border-gray-700/50 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-3">
@@ -590,21 +605,23 @@ export default function Dashboard() {
         user={user}
       />
       
-      <div className={`transition-all duration-300 ${isNavCollapsed ? 'lg:pl-20' : 'lg:pl-64'}`}>
-        <header className="lg:hidden bg-white/80 dark:bg-gray-900/80 backdrop-blur-md shadow-lg border-b border-gray-200/50 dark:border-gray-700/50 sticky top-0 z-40">
-          <div className="px-4 sm:px-6">
-            <div className="flex justify-between items-center h-16">
-              <div className="flex items-center space-x-3">
-                <div className="text-3xl">💪</div>
-                <h1 className="text-xl font-bold text-gray-900 dark:text-white">Gym Tracker</h1>
+      <div className={`transition-all duration-300 ${isNavCollapsed ? 'lg:pl-20' : 'lg:pl-64'}`} style={{ paddingBottom: 'calc(64px + env(safe-area-inset-bottom))' }}>
+        {state.view !== 'workout-active' && (
+          <header className="lg:hidden bg-white/80 dark:bg-gray-900/80 backdrop-blur-md shadow-lg border-b border-gray-200/50 dark:border-gray-700/50 sticky top-0 z-40">
+            <div className="px-4 sm:px-6">
+              <div className="flex justify-between items-center h-16">
+                <div className="flex items-center space-x-3">
+                  <div className="text-3xl">{activeHeader.icon}</div>
+                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">{activeHeader.title}</h1>
+                </div>
+                <button className="relative group">
+                  <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium shadow-lg">U</div>
+                  <div className="absolute top-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-900"></div>
+                </button>
               </div>
-              <button className="relative group">
-                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium shadow-lg">U</div>
-                <div className="absolute top-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-900"></div>
-              </button>
             </div>
-          </div>
-        </header>
+          </header>
+        )}
 
         <div className="min-h-screen pb-20 lg:pb-0">
           {renderContent()}

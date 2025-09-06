@@ -148,6 +148,7 @@ export function PhotoUpload({ date, existingPhotos, dispatch, user, onPhotosUpda
                     onClick={() => handleDeletePhoto(existingPhoto.id, type)}
                     className="text-red-500 hover:text-red-700 text-sm"
                     title="Eliminar foto"
+                    aria-label={`Eliminar foto de ${label}`}
                   >
                     🗑️
                   </button>
@@ -169,6 +170,8 @@ export function PhotoUpload({ date, existingPhotos, dispatch, user, onPhotosUpda
                       src={existingPhoto.dataUrl}
                       alt={`Foto de ${label}`}
                       className="w-full h-full object-cover rounded-lg"
+                      loading="lazy"
+                      decoding="async"
                     />
                     <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-30 transition-opacity flex items-center justify-center">
                       <span className="text-white opacity-0 hover:opacity-100 transition-opacity">
@@ -205,6 +208,7 @@ export function PhotoUpload({ date, existingPhotos, dispatch, user, onPhotosUpda
                 ref={el => fileInputRefs.current[type] = el}
                 type="file"
                 accept="image/*"
+                capture="environment"
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];

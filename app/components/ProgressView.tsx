@@ -697,32 +697,50 @@ export const ProgressView = ({ state, dispatch }: ProgressViewProps) => {
   return (
       <div className="space-y-6">
         {/* Exercise Selector */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-300 dark:border-gray-600 ring-1 ring-black/5 dark:ring-white/10 shadow-md">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
               💪 Progreso de Ejercicios
         </h3>
-            <div className="flex gap-3">
-          <select
-                value={selectedExercise}
-                onChange={(e) => setSelectedExercise(e.target.value)}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white font-medium"
-          >
-                {exerciseData.map(exercise => (
-                  <option key={exercise.id} value={exercise.id}>
-                    {exercise.name}
-              </option>
-            ))}
-          </select>
-          <select
-                value={exerciseChartMetric}
-                onChange={(e) => setExerciseChartMetric(e.target.value as any)}
-                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white font-medium"
-              >
-                <option value="maxWeight">🏋️ Peso Máximo</option>
-                <option value="volume">💯 Volumen</option>
-                <option value="avgRpe">⚡ RPE Promedio</option>
-          </select>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1 overflow-x-auto">
+                <div className="flex gap-2 pb-1">
+                  {exerciseData.map(exercise => (
+                    <button
+                      key={exercise.id}
+                      onClick={() => setSelectedExercise(exercise.id)}
+                      className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap border transition-colors ${
+                        selectedExercise === exercise.id
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      }`}
+                      aria-pressed={selectedExercise === exercise.id}
+                    >
+                      {exercise.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="inline-flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1 border border-gray-300 dark:border-gray-600">
+                {[
+                  { key: 'maxWeight', label: 'Peso', icon: '🏋️' },
+                  { key: 'volume', label: 'Volumen', icon: '💯' },
+                  { key: 'avgRpe', label: 'RPE', icon: '⚡' },
+                ].map(opt => (
+                  <button
+                    key={opt.key}
+                    onClick={() => setExerciseChartMetric(opt.key as any)}
+                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                      exerciseChartMetric === opt.key
+                        ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow'
+                        : 'text-gray-700 dark:text-gray-300'
+                    }`}
+                    aria-pressed={exerciseChartMetric === (opt.key as any)}
+                  >
+                    <span className="mr-1">{opt.icon}</span>{opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
         </div>
       </div>
@@ -771,7 +789,7 @@ export const ProgressView = ({ state, dispatch }: ProgressViewProps) => {
         </div>
 
         {/* Exercise Progress Chart */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-300 dark:border-gray-600 ring-1 ring-black/5 dark:ring-white/10 shadow-md">
           <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
             📈 Progreso de {selectedExerciseData.name} - {exerciseChartMetric === 'maxWeight' ? 'Peso Máximo' : exerciseChartMetric === 'volume' ? 'Volumen' : 'RPE Promedio'}
           </h4>
@@ -779,7 +797,7 @@ export const ProgressView = ({ state, dispatch }: ProgressViewProps) => {
         </div>
 
         {/* Exercise History Table */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-300 dark:border-gray-600 ring-1 ring-black/5 dark:ring-white/10 shadow-md">
           <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
             📋 Historial de {selectedExerciseData.name}
           </h4>
@@ -926,7 +944,7 @@ export const ProgressView = ({ state, dispatch }: ProgressViewProps) => {
         </div>
 
         {/* Date Navigation */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-300 dark:border-gray-600 ring-1 ring-black/5 dark:ring-white/10 shadow-md">
           <div className="flex items-center justify-between mb-4">
             <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
               📅 Seleccionar Fecha
@@ -967,7 +985,7 @@ export const ProgressView = ({ state, dispatch }: ProgressViewProps) => {
 
         {/* Comparison Mode */}
         {photoComparison && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-300 dark:border-gray-600 ring-1 ring-black/5 dark:ring-white/10 shadow-md">
             <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
               🔍 Modo Comparación
             </h4>
@@ -1084,7 +1102,7 @@ export const ProgressView = ({ state, dispatch }: ProgressViewProps) => {
           </div>
         ) : (
           // Single Date Mode
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-300 dark:border-gray-600 ring-1 ring-black/5 dark:ring-white/10 shadow-md">
             <div className="flex items-center justify-between mb-6">
               <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
                 📸 Fotos del {new Date(displayDate).toLocaleDateString('es-ES', { 
@@ -1405,15 +1423,15 @@ export const ProgressView = ({ state, dispatch }: ProgressViewProps) => {
 
   return (
     <div className="max-w-7xl mx-auto">
-      {/* Header */}
+      {/* Header (hide on mobile to avoid duplication with app header) */}
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+        <h3 className="hidden lg:block text-2xl font-bold text-gray-900 dark:text-white">
           📈 Progreso
         </h3>
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex gap-2 mb-6 border-b border-gray-200 dark:border-gray-700">
+      <div className="flex gap-2 mb-6 border-b border-gray-300 dark:border-gray-600">
         <button
           onClick={() => setActiveTab('exercises')}
           className={`px-4 py-2 rounded-t-lg font-medium transition-colors ${
