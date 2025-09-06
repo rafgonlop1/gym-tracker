@@ -24,10 +24,11 @@ export const links: LinksFunction = () => [
   },
 ];
 
-export async function loader({ request }: LoaderFunctionArgs) {
+export async function loader({ context }: LoaderFunctionArgs & { context: any }) {
+  // Prefer Cloudflare Pages env (provided via `functions/[[path]].js`), fallback to process.env for local/dev
   const env = {
-    SUPABASE_URL: process.env.VITE_SUPABASE_URL!,
-    SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY!,
+    SUPABASE_URL: (context && context.SUPABASE_URL) || process.env.VITE_SUPABASE_URL!,
+    SUPABASE_ANON_KEY: (context && context.SUPABASE_ANON_KEY) || process.env.VITE_SUPABASE_ANON_KEY!,
   };
 
   return json({ env });

@@ -13,7 +13,7 @@ export function useTabataTimer() {
     rounds: 8
   });
   
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const currentRoundRef = useRef(currentRound);
   const currentPhaseRef = useRef(currentPhase);

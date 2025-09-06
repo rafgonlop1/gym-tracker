@@ -4,7 +4,7 @@ export function useRestTimer() {
   const [restTime, setRestTime] = useState(0); // time in seconds
   const [isRestTimerActive, setIsRestTimerActive] = useState(false);
   const [restDuration, setRestDuration] = useState(90); // default 90 seconds
-  const restIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const restIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {

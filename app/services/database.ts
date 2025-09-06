@@ -150,13 +150,24 @@ export class DatabaseService {
   }
 
   // ========== EXERCISES ==========
-  async getExercises(userId: string) {
-    const { data, error } = await this.supabase
+  async getExercises(userId?: string) {
+    let query = this.supabase
       .from('exercises')
       .select('*')
-      .or(`user_id.eq.${userId},user_id.is.null`)
       .order('name');
-  
+
+    if (userId) {
+      // Return both user-specific and global exercises
+      query = query.or(`user_id.eq.${userId},user_id.is.null`);
+    } else {
+      // Only global exercises when unauthenticated
+      // Use is.null filter: in Supabase JS v2: .is('column', null)
+      // but .is is on FilterBuilder; cast by chaining directly
+      // @ts-expect-error - type inference limitation for union filter builders
+      query = query.is('user_id', null);
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
     return data;
   }

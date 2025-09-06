@@ -721,7 +721,7 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
                         ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700'
                         : 'bg-yellow-100 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-700'
                       : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700'}
-                    ${isToday ? 'ring-3 ring-orange-500 ring-opacity-60' : ''}
+                    ${isToday ? 'ring-[3px] ring-orange-500 ring-opacity-60' : ''}
                     hover:shadow-lg transition-all transform hover:scale-105
                   `}
                   title={`${day.day} - ${hasData ? `${metricsCount}/${totalMetrics} métricas, ${workoutsCount} entrenamientos, ${photosCount} fotos` : 'Click para agregar datos'}`}

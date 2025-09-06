@@ -8,7 +8,6 @@ interface NavigationProps {
   currentView: AppView;
   dispatch: AppDispatch;
   metricsCount: number;
-  workoutsCount: number;
   onCollapsedChange?: (collapsed: boolean) => void;
   user?: User | null;
 }

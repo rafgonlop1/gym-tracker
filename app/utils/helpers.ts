@@ -35,7 +35,7 @@ export const getPreviousValue = (metric: Metric) => {
 export const getTrend = (metric: Metric) => {
   const latest = getLatestValue(metric);
   const previous = getPreviousValue(metric);
-  if (!latest || !previous) return "stable";
+  if (latest == null || previous == null) return "stable";
   return latest > previous ? "up" : latest < previous ? "down" : "stable";
 };
 
@@ -45,10 +45,11 @@ export const getTrendIcon = (trend: string) => {
 
 export const getTrendColor = (trend: string, targetType?: string) => {
   if (trend === "stable") return "text-gray-600";
-  if (targetType === "lower") {
+  // Support synonyms: lower/decrease and higher/increase
+  if (targetType === "lower" || targetType === "decrease") {
     return trend === "down" ? "text-green-600" : "text-red-600";
   }
-  if (targetType === "higher") {
+  if (targetType === "higher" || targetType === "increase") {
     return trend === "up" ? "text-green-600" : "text-red-600";
   }
   return "text-gray-600";

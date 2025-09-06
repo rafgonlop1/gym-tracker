@@ -74,19 +74,13 @@ export default function Dashboard() {
         !currentSessionIds.has(id)
       );
       
-      console.log('Checking for deletions:', {
-        persistedIds: Array.from(persistedWorkoutIds),
-        currentIds: Array.from(currentSessionIds),
-        deletedIds: deletedSessionIds
-      });
+      // Debug logging removed for production cleanliness
       
       // Delete sessions from database
       for (const sessionId of deletedSessionIds) {
         try {
           // Delete from database
-          console.log('Attempting to delete workout session:', sessionId);
           await db.deleteWorkoutSession(sessionId);
-          console.log('Workout session deleted from database:', sessionId);
           
           // Mark as deleted to avoid processing again
           setDeletedWorkoutIds(prev => new Set(prev).add(sessionId));
@@ -112,13 +106,6 @@ export default function Dashboard() {
           
           if (isEditing && alreadyPersisted) {
             // Update existing session - this handles the edit case
-            console.log('Updating workout session:', session.id, {
-              endTime: session.endTime,
-              totalDuration: session.totalDuration,
-              completed: session.completed,
-              exercisesCount: session.exercises?.length || 0,
-              cardioCount: session.cardioActivities?.length || 0
-            });
             await db.updateWorkoutSession(session.id, {
               endTime: session.endTime,
               totalDuration: session.totalDuration,
@@ -126,7 +113,6 @@ export default function Dashboard() {
               exercises: session.exercises || [],
               cardioActivities: session.cardioActivities || []
             });
-            console.log('Workout session updated in database:', session.id);
           } else if (!alreadyPersisted) {
             // Create new session in database
             const { date, workoutType, startTime, endTime, totalDuration, completed, exercises, cardioActivities } = session;
@@ -140,7 +126,6 @@ export default function Dashboard() {
               exercises: exercises || [],
               cardioActivities: cardioActivities || []
             });
-            console.log('Workout session saved to database:', newSession.id);
             
             // Mark this session as persisted only for new sessions
             setPersistedWorkoutIds(prev => new Set(prev).add(session.id));
@@ -177,33 +162,38 @@ export default function Dashboard() {
     const supabase = createSupabaseClient();
     const db = new DatabaseService(supabase);
     
-    const groupedByDate = {};
-    
-    for (const photo of dbPhotos) {
-      const date = photo.date;
+    // Fetch all signed URLs in parallel for speed
+    const signedUrls = await Promise.all(
+      dbPhotos.map(async (photo) => {
+        try {
+          const url = await db.getSignedPhotoUrl(photo.photo_url);
+          return { ok: true as const, photo, url };
+        } catch (error) {
+          console.error('Error getting signed URL for photo:', error);
+          return { ok: false as const, photo };
+        }
+      })
+    );
+
+    const groupedByDate: Record<string, { date: string; photos: any[] }> = {};
+
+    for (const result of signedUrls) {
+      const p = result.photo;
+      const date = p.date;
       if (!groupedByDate[date]) {
-        groupedByDate[date] = {
-          date,
-          photos: []
-        };
+        groupedByDate[date] = { date, photos: [] };
       }
-      
-      // Get signed URL for secure access
-      try {
-        const signedUrl = await db.getSignedPhotoUrl(photo.photo_url);
+      if (result.ok) {
         groupedByDate[date].photos.push({
-          id: photo.id,
-          type: photo.photo_type,
-          dataUrl: signedUrl, // Use signed URL instead of public URL
-          fileName: photo.photo_url, // Store file path for deletion
-          timestamp: photo.created_at
+          id: p.id,
+          type: p.photo_type,
+          dataUrl: result.url,
+          fileName: p.photo_url,
+          timestamp: p.created_at,
         });
-      } catch (error) {
-        console.error('Error getting signed URL for photo:', error);
-        // Skip this photo if we can't get a signed URL
       }
     }
-    
+
     return Object.values(groupedByDate);
   };
 
@@ -424,7 +414,7 @@ export default function Dashboard() {
               const latestValue = getLatestValue(metric);
               const previousValue = getPreviousValue(metric);
               const trend = getTrend(metric);
-              const progress = metric.target ? ((latestValue || 0) / metric.target) * 100 : null;
+              const progress = metric.target ? ((latestValue ?? 0) / metric.target) * 100 : null;
               
               return (
                 <div
@@ -460,7 +450,7 @@ export default function Dashboard() {
                         'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
                       }`}>
                         <span>{getTrendIcon(trend)}</span>
-                        {latestValue && previousValue && (
+                        {latestValue !== null && previousValue !== null && (
                           <span>{Math.abs(latestValue - previousValue).toFixed(1)}</span>
                         )}
                       </div>
@@ -468,17 +458,21 @@ export default function Dashboard() {
                     
                     <div className="space-y-3">
                       <div className="flex items-baseline space-x-2">
-                        <span className="text-4xl font-bold text-gray-900 dark:text-white">{latestValue || "—"}</span>
+                        <span className="text-4xl font-bold text-gray-900 dark:text-white">{latestValue ?? "—"}</span>
                         <span className="text-lg text-gray-500 dark:text-gray-400">{metric.unit}</span>
                       </div>
                       
-                      {previousValue && (
+                      {previousValue !== null && (
                         <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
                           <span>Anterior: {previousValue}{metric.unit}</span>
-                          <span className={`font-medium ${getTrendColor(trend, metric.targetType)}`}>
-                            {trend === "down" ? "↓" : trend === "up" ? "↑" : "→"}
-                            {((Math.abs(latestValue - previousValue) / previousValue) * 100).toFixed(0)}%
-                          </span>
+                          {previousValue !== 0 ? (
+                            <span className={`font-medium ${getTrendColor(trend, metric.targetType)}`}>
+                              {trend === "down" ? "↓" : trend === "up" ? "↑" : "→"}
+                              {((Math.abs((latestValue ?? 0) - previousValue) / Math.abs(previousValue)) * 100).toFixed(0)}%
+                            </span>
+                          ) : (
+                            <span className={`font-medium ${getTrendColor(trend, metric.targetType)}`}>—</span>
+                          )}
                         </div>
                       )}
                       
