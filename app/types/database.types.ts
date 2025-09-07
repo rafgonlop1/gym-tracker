@@ -44,6 +44,10 @@ export interface Database {
           color: string
           icon: string
           created_at: string
+          // Added to reflect DB
+          updated_at: string
+          target: number | null
+          target_type: string | null
         }
         Insert: {
           id?: string
@@ -53,6 +57,10 @@ export interface Database {
           color: string
           icon: string
           created_at?: string
+          // Added to reflect DB
+          updated_at?: string
+          target?: number | null
+          target_type?: string | null
         }
         Update: {
           id?: string
@@ -62,6 +70,10 @@ export interface Database {
           color?: string
           icon?: string
           created_at?: string
+          // Added to reflect DB
+          updated_at?: string
+          target?: number | null
+          target_type?: string | null
         }
       }
       measurements: {

@@ -29,7 +29,6 @@ export function TimerView({ dispatch }: TimerViewProps) {
     currentPhase,
     currentRound,
     config: tabataConfig,
-    setConfig: setTabataConfig,
     startTimer: startTabataTimer,
     pauseTimer: pauseTabataTimer,
     resumeTimer: resumeTabataTimer,
@@ -43,7 +42,6 @@ export function TimerView({ dispatch }: TimerViewProps) {
 
   const [isEditing, setIsEditing] = useState(false);
   const [timeInputValue, setTimeInputValue] = useState("00:00");
-  const [isConfiguring, setIsConfiguring] = useState(false);
 
   useEffect(() => {
     if (!isEditing && timerMode === "rest") {
@@ -239,15 +237,7 @@ export function TimerView({ dispatch }: TimerViewProps) {
                   </div>
                 )}
                 
-                {/* Tabata Configuration Button */}
-                {!isTabataActive && (
-                  <button
-                    onClick={() => setIsConfiguring(!isConfiguring)}
-                    className="text-sm bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition-colors"
-                  >
-                    ⚙️ Configurar Tabata
-                  </button>
-                )}
+                {/* Removed Tabata configuration button to keep UI simple */}
               </>
             )}
             
@@ -362,85 +352,7 @@ export function TimerView({ dispatch }: TimerViewProps) {
           </div>
         )}
         
-        {/* Tabata Configuration */}
-        {timerMode === "tabata" && isConfiguring && !isTabataActive && (
-          <div className="mt-6 bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
-            <h3 className="text-lg font-semibold mb-4 text-center text-gray-900 dark:text-white">Configuración Tabata</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Calentamiento
-                </label>
-                <input
-                  type="number"
-                  value={tabataConfig.warmupTime}
-                  onChange={(e) => setTabataConfig({...tabataConfig, warmupTime: parseInt(e.target.value) || 0})}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-                  min="0"
-                  max="300"
-                />
-                <span className="text-xs text-gray-500 dark:text-gray-400">segundos</span>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Trabajo
-                </label>
-                <input
-                  type="number"
-                  value={tabataConfig.workTime}
-                  onChange={(e) => setTabataConfig({...tabataConfig, workTime: parseInt(e.target.value) || 0})}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-                  min="1"
-                  max="300"
-                />
-                <span className="text-xs text-gray-500 dark:text-gray-400">segundos</span>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Descanso
-                </label>
-                <input
-                  type="number"
-                  value={tabataConfig.restTime}
-                  onChange={(e) => setTabataConfig({...tabataConfig, restTime: parseInt(e.target.value) || 0})}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-                  min="1"
-                  max="300"
-                />
-                <span className="text-xs text-gray-500 dark:text-gray-400">segundos</span>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Rounds
-                </label>
-                <input
-                  type="number"
-                  value={tabataConfig.rounds}
-                  onChange={(e) => setTabataConfig({...tabataConfig, rounds: parseInt(e.target.value) || 1})}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-                  min="1"
-                  max="20"
-                />
-                <span className="text-xs text-gray-500 dark:text-gray-400">ciclos</span>
-              </div>
-            </div>
-            
-            <div className="mt-4 text-center">
-              <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                Tiempo total: {formatTabataTime(getTotalTime())}
-              </div>
-              <button
-                onClick={() => setIsConfiguring(false)}
-                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
-              >
-                Listo
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Tabata configuration removed */}
 
       </div>
       

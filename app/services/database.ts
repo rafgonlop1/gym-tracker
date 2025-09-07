@@ -96,6 +96,28 @@ export class DatabaseService {
     return data
   }
 
+  async updateMetric(metricId: string, updates: Partial<Metric>) {
+    const payload: any = {
+      updated_at: new Date().toISOString()
+    }
+    if (updates.name !== undefined) payload.name = updates.name
+    if (updates.unit !== undefined) payload.unit = updates.unit
+    if (updates.icon !== undefined) payload.icon = updates.icon
+    if (updates.color !== undefined) payload.color = updates.color
+    if (updates.target !== undefined) payload.target = updates.target
+    if (updates.targetType !== undefined) payload.target_type = updates.targetType
+
+    const { data, error } = await this.supabase
+      .from('metrics')
+      .update(payload)
+      .eq('id', metricId)
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  }
+
   async addMeasurement(metricId: string, date: string, value: number, notes?: string) {
     const { data, error } = await this.supabase
       .from('measurements')
@@ -301,21 +323,52 @@ export class DatabaseService {
 
   // ========== WORKOUT SESSIONS ==========
   async getWorkoutSessions(userId: string, limit = 50) {
-    const { data, error } = await this.supabase
+    // 1) Fetch sessions
+    const { data: sessions, error: sessionsError } = await this.supabase
       .from('workout_sessions')
-      .select(`
-        *,
-        workout_exercises (*),
-        cardio_activities (*)
-      `)
+      .select('*')
       .eq('user_id', userId)
       .order('date', { ascending: false })
       .limit(limit)
 
-    if (error) throw error
-    
-    // Transform data to match frontend types
-    return data?.map(session => ({
+    if (sessionsError) throw sessionsError
+    if (!sessions || sessions.length === 0) return []
+
+    const sessionIds = sessions.map(s => s.id)
+
+    // 2) Fetch children in parallel
+    const [exercisesRes, cardioRes] = await Promise.all([
+      this.supabase
+        .from('workout_exercises')
+        .select('*')
+        .in('session_id', sessionIds)
+        .order('exercise_order', { ascending: true }),
+      this.supabase
+        .from('cardio_activities')
+        .select('*')
+        .in('session_id', sessionIds)
+        .order('created_at', { ascending: true })
+    ])
+
+    if (exercisesRes.error) console.error('DB:getWorkoutSessions → workout_exercises error:', exercisesRes.error)
+    if (cardioRes.error) console.error('DB:getWorkoutSessions → cardio_activities error:', cardioRes.error)
+
+    const exBySession = new Map<string, any[]>()
+    for (const sid of sessionIds) exBySession.set(sid, [])
+    for (const ex of exercisesRes.data || []) {
+      const arr = exBySession.get(ex.session_id)
+      if (arr) arr.push(ex)
+    }
+
+    const cardioBySession = new Map<string, any[]>()
+    for (const sid of sessionIds) cardioBySession.set(sid, [])
+    for (const c of (cardioRes.data || [])) {
+      const arr = cardioBySession.get(c.session_id)
+      if (arr) arr.push(c)
+    }
+
+    // 3) Transform to frontend types
+    const transformed = sessions.map(session => ({
       id: session.id,
       date: session.date,
       workoutType: session.workout_type,
@@ -323,13 +376,13 @@ export class DatabaseService {
       endTime: session.end_time,
       totalDuration: session.total_duration,
       completed: session.completed,
-      exercises: (session.workout_exercises || []).map((ex: any) => ({
-        exerciseId: ex.exercise_name, // Use exercise name as ID for consistency
+      exercises: (exBySession.get(session.id) || []).map((ex: any) => ({
+        exerciseId: ex.exercise_name,
         exerciseName: ex.exercise_name,
         sets: ex.sets || [],
         notes: ex.notes
       })),
-      cardioActivities: (session.cardio_activities || []).map((activity: any) => ({
+      cardioActivities: (cardioBySession.get(session.id) || []).map((activity: any) => ({
         id: activity.id,
         name: activity.name,
         duration: activity.duration,
@@ -341,7 +394,12 @@ export class DatabaseService {
           max: activity.heart_rate_max
         } : undefined
       }))
-    })) || []
+    }))
+
+    console.log('DB:getWorkoutSessions → sessions:', transformed.length,
+      'exercises total:', (exercisesRes.data || []).length,
+      'cardio total:', (cardioRes.data || []).length)
+    return transformed
   }
 
   async createWorkoutSession(userId: string, session: Omit<WorkoutSession, 'id'>) {
@@ -364,11 +422,20 @@ export class DatabaseService {
 
     // Create workout exercises
     if (session.exercises && session.exercises.length > 0) {
+      console.log('DB:createWorkoutSession → exercises to insert:', session.exercises.length)
       const workoutExercises = session.exercises.map((exercise, index) => ({
         session_id: sessionData.id,
         exercise_name: exercise.exerciseName,
         exercise_order: index,
-        sets: exercise.sets,
+        // Normalize sets to avoid nulls/undefined breaking JSON validation
+        sets: (exercise.sets || []).map(s => ({
+          setNumber: s.setNumber,
+          reps: s.reps ?? 0,
+          weight: s.weight ?? 0,
+          rpe: s.rpe ?? undefined,
+          completed: !!s.completed,
+          notes: s.notes ?? undefined
+        })),
         notes: exercise.notes
       }))
 
@@ -377,6 +444,7 @@ export class DatabaseService {
         .insert(workoutExercises)
 
       if (exercisesError) throw exercisesError
+      console.log('DB:createWorkoutSession → inserted workout_exercises:', workoutExercises.length)
     }
 
     // Create cardio activities
@@ -384,10 +452,10 @@ export class DatabaseService {
       const cardioActivities = session.cardioActivities.map(activity => ({
         session_id: sessionData.id,
         name: activity.name,
-        duration: activity.duration,
-        distance: activity.distance,
-        intensity: activity.intensity,
-        calories: activity.calories,
+        duration: activity.duration || 0,
+        distance: activity.distance ?? null,
+        intensity: activity.intensity ?? null,
+        calories: activity.calories ?? null,
         heart_rate_avg: activity.heartRate?.avg,
         heart_rate_max: activity.heartRate?.max
       }))
@@ -416,21 +484,31 @@ export class DatabaseService {
 
     if (error) throw error
 
-    // Update exercises if provided
+    // Update exercises if provided (ignore undefined; treat empty array as "no changes" to avoid wiping)
     if (updates.exercises !== undefined) {
-      // Delete existing exercises for this session
-      await this.supabase
-        .from('workout_exercises')
-        .delete()
-        .eq('session_id', sessionId)
+      if ((updates.exercises || []).length === 0) {
+        // Skip destructive sync when empty to avoid deleting existing children unintentionally
+        console.log('DB:updateWorkoutSession → skip exercises update (empty array)')
+      } else {
+        console.log('DB:updateWorkoutSession → syncing exercises count:', updates.exercises.length)
+        // Delete existing exercises for this session then insert provided ones
+        await this.supabase
+          .from('workout_exercises')
+          .delete()
+          .eq('session_id', sessionId)
 
-      // Insert updated exercises
-      if (updates.exercises.length > 0) {
         const workoutExercises = updates.exercises.map((exercise, index) => ({
           session_id: sessionId,
           exercise_name: exercise.exerciseName,
           exercise_order: index,
-          sets: exercise.sets,
+          sets: (exercise.sets || []).map(s => ({
+            setNumber: s.setNumber,
+            reps: s.reps ?? 0,
+            weight: s.weight ?? 0,
+            rpe: s.rpe ?? undefined,
+            completed: !!s.completed,
+            notes: s.notes ?? undefined
+          })),
           notes: exercise.notes
         }))
 
@@ -439,26 +517,29 @@ export class DatabaseService {
           .insert(workoutExercises)
 
         if (exercisesError) throw exercisesError
+        console.log('DB:updateWorkoutSession → inserted workout_exercises:', workoutExercises.length)
       }
     }
 
-    // Update cardio activities if provided
+    // Update cardio activities if provided (ignore undefined; treat empty array as "no changes")
     if (updates.cardioActivities !== undefined) {
-      // Delete existing cardio activities for this session
-      await this.supabase
-        .from('cardio_activities')
-        .delete()
-        .eq('session_id', sessionId)
+      if ((updates.cardioActivities || []).length === 0) {
+        // Skip destructive sync when empty
+        console.log('DB:updateWorkoutSession → skip cardio update (empty array)')
+      } else {
+        console.log('DB:updateWorkoutSession → syncing cardio count:', updates.cardioActivities.length)
+        await this.supabase
+          .from('cardio_activities')
+          .delete()
+          .eq('session_id', sessionId)
 
-      // Insert updated cardio activities
-      if (updates.cardioActivities.length > 0) {
         const cardioActivities = updates.cardioActivities.map(activity => ({
           session_id: sessionId,
           name: activity.name,
-          duration: activity.duration,
-          distance: activity.distance,
-          intensity: activity.intensity,
-          calories: activity.calories,
+          duration: activity.duration || 0,
+          distance: activity.distance ?? null,
+          intensity: activity.intensity ?? null,
+          calories: activity.calories ?? null,
           heart_rate_avg: activity.heartRate?.avg,
           heart_rate_max: activity.heartRate?.max
         }))
@@ -468,6 +549,7 @@ export class DatabaseService {
           .insert(cardioActivities)
 
         if (cardioError) throw cardioError
+        console.log('DB:updateWorkoutSession → inserted cardio_activities:', cardioActivities.length)
       }
     }
   }

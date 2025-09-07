@@ -285,7 +285,7 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
                 <div className="space-y-3">
                   {dayWorkouts.map((workout, index) => (
                     <div key={workout.id} className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
                         <div className="flex items-center space-x-3">
                           <span className="text-2xl">{getWorkoutIcon(workout.workoutType)}</span>
                           <div>
@@ -298,8 +298,8 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center space-x-3">
-                          <div className="text-right">
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto justify-end">
+                          <div className="w-full text-left sm:text-right">
                             <p className="text-sm font-medium text-gray-900 dark:text-white">
                               {formatDuration(workout.totalDuration)}
                             </p>
@@ -313,7 +313,7 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
                                 setShowEditModal(false);
                                 dispatch({ type: "EDIT_WORKOUT_SESSION", workoutId: workout.id });
                               }}
-                              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-lg transition-colors"
+                              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-lg transition-colors shrink-0"
                               title="Editar entrenamiento"
                             >
                               ✏️ Editar
@@ -324,7 +324,7 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
                                   dispatch({ type: "DELETE_WORKOUT_SESSION", workoutId: workout.id });
                                 }
                               }}
-                              className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded-lg transition-colors"
+                              className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded-lg transition-colors shrink-0"
                               title="Eliminar entrenamiento"
                             >
                               🗑️ Eliminar
@@ -571,7 +571,7 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <h3 className="hidden lg:block text-2xl font-bold text-gray-900 dark:text-white">
@@ -677,7 +677,7 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
                   key={`${weekIndex}-${dayIndex}`}
                   onClick={() => handleDayClick(day.date)}
                   className={`
-                    aspect-square rounded-xl border-2 p-2 flex flex-col items-center justify-center relative cursor-pointer
+                    aspect-square rounded-xl border-2 p-2 flex flex-col items-center justify-start overflow-hidden relative cursor-pointer pt-1
                     ${hasData 
                       ? completionPercentage >= 80
                         ? 'bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-700' 
@@ -695,27 +695,23 @@ export const CalendarView = ({ state, dispatch }: CalendarViewProps) => {
                   </span>
                   
                   {hasData && (
-                    <div className="flex flex-wrap gap-1 mt-1 justify-center">
+                    <div className="flex flex-wrap gap-1 mt-1 justify-center max-w-full overflow-hidden leading-none text-[11px]">
                       {/* Show workout icons first */}
                       {day.dayData.workouts.slice(0, 2).map((workout, idx) => (
-                        <span key={`workout-${idx}`} className="text-xs">
+                        <span key={`workout-${idx}`}>
                           {getWorkoutIcon(workout.workoutType)}
                         </span>
                       ))}
                       {/* Show single metric icon if there are metrics */}
                       {metricsCount > 0 && (
-                        <span key="metrics" className="text-xs">
-                          📊
-                        </span>
+                        <span key="metrics">📊</span>
                       )}
                       {/* Show photo icon if there are photos */}
                       {photosCount > 0 && (
-                        <span key="photos" className="text-xs">
-                          📸
-                        </span>
+                        <span key="photos">📸</span>
                       )}
                       {totalItems > 5 && (
-                        <span className="text-xs text-gray-600">+{totalItems - 5}</span>
+                        <span className="text-gray-600 dark:text-gray-400">+{totalItems - 5}</span>
                       )}
                     </div>
                   )}

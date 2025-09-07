@@ -556,6 +556,13 @@ export const ProgressView = ({ state, dispatch }: ProgressViewProps) => {
     setSelectedMetric(initialMetric);
   }, [state.selectedMetricId, state.metrics]);
 
+  // If a metric is pre-selected (e.g., from DailySheet), open Metrics tab directly
+  useEffect(() => {
+    if (state.selectedMetricId) {
+      setActiveTab('metrics');
+    }
+  }, [state.selectedMetricId]);
+
   // Get all unique exercises from workout sessions
   const exerciseData = useMemo(() => {
     const exerciseMap = new Map<string, {
@@ -570,19 +577,28 @@ export const ProgressView = ({ state, dispatch }: ProgressViewProps) => {
         }>;
       }>;
     }>();
+    
+    // Track unique (sessionId, exerciseId) pairs to avoid duplicates from DB
+    const seenPairs = new Set<string>();
 
     state.workoutSessions.forEach(session => {
       if (session.exercises) {
         session.exercises.forEach(exercise => {
-          if (exercise.exerciseId && exercise.exerciseName && !exerciseMap.has(exercise.exerciseId)) {
-            exerciseMap.set(exercise.exerciseId, {
+          const exerciseKey = exercise.exerciseId || exercise.exerciseName;
+          if (!exerciseKey || !exercise.exerciseName) return;
+
+          if (!exerciseMap.has(exerciseKey)) {
+            exerciseMap.set(exerciseKey, {
               name: exercise.exerciseName,
               sessions: []
             });
           }
           
-          if (exercise.exerciseId) {
-            exerciseMap.get(exercise.exerciseId)!.sessions.push({
+          const pairKey = `${session.id}:${exerciseKey}`;
+          if (seenPairs.has(pairKey)) return; // prevent counting same exercise multiple times per session
+          seenPairs.add(pairKey);
+
+          exerciseMap.get(exerciseKey)!.sessions.push({
             date: session.date,
             sets: exercise.sets.map(set => ({
               weight: set.weight || 0,
@@ -591,16 +607,20 @@ export const ProgressView = ({ state, dispatch }: ProgressViewProps) => {
               completed: set.completed
             }))
           });
-          }
         });
       }
     });
 
-    return Array.from(exerciseMap.entries()).map(([id, data]) => ({
-      id,
-      name: data.name,
-      sessions: data.sessions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    }));
+    return Array.from(exerciseMap.entries())
+      .map(([id, data]) => ({
+        id,
+        name: data.name,
+        sessions: data.sessions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      }))
+      // Show only exercises that have at least one set recorded (entries)
+      .filter(ex => ex.sessions.some(session =>
+        session.sets.some(set => (set.reps || 0) > 0 || (set.weight || 0) > 0 || set.completed)
+      ));
   }, [state.workoutSessions]);
 
   // Get all unique cardio activities
@@ -695,31 +715,25 @@ export const ProgressView = ({ state, dispatch }: ProgressViewProps) => {
     const avgRpe = rpeValues.length > 0 ? rpeValues.reduce((sum, set) => sum + (set.rpe || 0), 0) / rpeValues.length : 0;
 
   return (
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Exercise Selector */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-300 dark:border-gray-600 ring-1 ring-black/5 dark:ring-white/10 shadow-md">
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-3 sm:p-4 border border-gray-300 dark:border-gray-600 ring-1 ring-black/5 dark:ring-white/10 shadow-md">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
               💪 Progreso de Ejercicios
         </h3>
             <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1 overflow-x-auto">
-                <div className="flex gap-2 pb-1">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Selecciona ejercicio</label>
+                <select
+                  value={selectedExercise}
+                  onChange={(e) => setSelectedExercise(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                >
                   {exerciseData.map(exercise => (
-                    <button
-                      key={exercise.id}
-                      onClick={() => setSelectedExercise(exercise.id)}
-                      className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap border transition-colors ${
-                        selectedExercise === exercise.id
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      }`}
-                      aria-pressed={selectedExercise === exercise.id}
-                    >
-                      {exercise.name}
-                    </button>
+                    <option key={exercise.id} value={exercise.id}>{exercise.name}</option>
                   ))}
-                </div>
+                </select>
               </div>
               <div className="inline-flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1 border border-gray-300 dark:border-gray-600">
                 {[
@@ -745,47 +759,30 @@ export const ProgressView = ({ state, dispatch }: ProgressViewProps) => {
         </div>
       </div>
 
-        {/* Exercise Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-2xl">🏋️</span>
+        {/* Exercise Stats - compact inline bar */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-3 sm:p-4 border border-gray-200 dark:border-gray-700">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-base">🏋️</span>
+              <span className="font-semibold text-gray-900 dark:text-white">{maxWeight}kg</span>
+              <span className="text-gray-500 dark:text-gray-400">Peso máx</span>
             </div>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">
-              {maxWeight}kg
-            </p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Peso Máximo</p>
+            <div className="flex items-center gap-2">
+              <span className="text-base">📊</span>
+              <span className="font-semibold text-gray-900 dark:text-white">{selectedExerciseData.sessions.length}</span>
+              <span className="text-gray-500 dark:text-gray-400">Sesiones</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-base">💯</span>
+              <span className="font-semibold text-gray-900 dark:text-white">{totalVolume.toFixed(0)}</span>
+              <span className="text-gray-500 dark:text-gray-400">Volumen (kg)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-base">⚡</span>
+              <span className="font-semibold text-gray-900 dark:text-white">{avgRpe > 0 ? avgRpe.toFixed(1) : '-'}</span>
+              <span className="text-gray-500 dark:text-gray-400">RPE prom</span>
+            </div>
           </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-2xl">📊</span>
-            </div>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">
-              {selectedExerciseData.sessions.length}
-            </p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Sesiones</p>
-      </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-2xl">💯</span>
-            </div>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">
-              {totalVolume.toFixed(0)}
-            </p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Volumen Total (kg)</p>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-2xl">⚡</span>
-          </div>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">
-              {avgRpe > 0 ? avgRpe.toFixed(1) : '-'}
-            </p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">RPE Promedio</p>
-            </div>
         </div>
 
         {/* Exercise Progress Chart */}
@@ -873,7 +870,7 @@ export const ProgressView = ({ state, dispatch }: ProgressViewProps) => {
             Ve a Ficha Diaria para subir tus primeras fotos de progreso
           </p>
           <button
-            onClick={() => dispatch({ type: "SET_VIEW", view: "daily-sheet" })}
+            onClick={() => dispatch({ type: "SET_VIEW", view: "dashboard" })}
             className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
           >
             Ir a Ficha Diaria
@@ -1173,7 +1170,7 @@ export const ProgressView = ({ state, dispatch }: ProgressViewProps) => {
         )}
 
         {/* Timeline Navigation */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-3 sm:p-4 border border-gray-200 dark:border-gray-700">
           <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
             📈 Línea de Tiempo
           </h4>
@@ -1259,72 +1256,67 @@ export const ProgressView = ({ state, dispatch }: ProgressViewProps) => {
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
               ❤️ Progreso de Cardio
             </h3>
-            <div className="flex gap-3">
-              <select
-                value={selectedCardioActivity}
-                onChange={(e) => setSelectedCardioActivity(e.target.value)}
-                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white font-medium"
-              >
-                {cardioData.map(activity => (
-                  <option key={activity.name} value={activity.name}>
-                    {activity.name}
-                  </option>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Selecciona actividad</label>
+                <select
+                  value={selectedCardioActivity}
+                  onChange={(e) => setSelectedCardioActivity(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                >
+                  {cardioData.map(activity => (
+                    <option key={activity.name} value={activity.name}>{activity.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="inline-flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1 border border-gray-300 dark:border-gray-600">
+                {[
+                  { key: 'distance', label: 'Dist', icon: '📏' },
+                  { key: 'duration', label: 'Tiempo', icon: '⏱️' },
+                  { key: 'pace', label: 'Pace', icon: '🎯' },
+                  { key: 'calories', label: 'Cal', icon: '🔥' },
+                ].map(opt => (
+                  <button
+                    key={opt.key}
+                    onClick={() => setCardioChartMetric(opt.key as any)}
+                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                      cardioChartMetric === opt.key
+                        ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow'
+                        : 'text-gray-700 dark:text-gray-300'
+                    }`}
+                    aria-pressed={cardioChartMetric === (opt.key as any)}
+                  >
+                    <span className="mr-1">{opt.icon}</span>{opt.label}
+                  </button>
                 ))}
-              </select>
-              <select
-                value={cardioChartMetric}
-                onChange={(e) => setCardioChartMetric(e.target.value as any)}
-                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white font-medium"
-              >
-                <option value="distance">📏 Distancia</option>
-                <option value="duration">⏱️ Duración</option>
-                <option value="pace">🎯 Pace</option>
-                <option value="calories">🔥 Calorías</option>
-              </select>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Cardio Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between mb-2">
-              <span className="text-2xl">🏃</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">
-              {totalSessions}
-          </p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Sesiones</p>
-        </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between mb-2">
-              <span className="text-2xl">📏</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">
-              {totalDistance.toFixed(1)}km
-          </p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Distancia Total</p>
-        </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between mb-2">
-              <span className="text-2xl">⏱️</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">
-              {Math.round(totalDuration)}min
-          </p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Tiempo Total</p>
-        </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-2xl">🎯</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">
-              {avgPace > 0 ? `${avgPace.toFixed(1)}min/km` : '-'}
-          </p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Pace Promedio</p>
+        {/* Cardio Stats - compact inline bar */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-3 sm:p-4 border border-gray-200 dark:border-gray-700">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-base">🏃</span>
+              <span className="font-semibold text-gray-900 dark:text-white">{totalSessions}</span>
+              <span className="text-gray-500 dark:text-gray-400">Sesiones</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-base">📏</span>
+              <span className="font-semibold text-gray-900 dark:text-white">{totalDistance.toFixed(1)}km</span>
+              <span className="text-gray-500 dark:text-gray-400">Distancia</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-base">⏱️</span>
+              <span className="font-semibold text-gray-900 dark:text-white">{Math.round(totalDuration)}min</span>
+              <span className="text-gray-500 dark:text-gray-400">Tiempo</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-base">🎯</span>
+              <span className="font-semibold text-gray-900 dark:text-white">{avgPace > 0 ? `${avgPace.toFixed(1)}min/km` : '-'}</span>
+              <span className="text-gray-500 dark:text-gray-400">Pace prom</span>
+            </div>
           </div>
         </div>
 
@@ -1394,27 +1386,27 @@ export const ProgressView = ({ state, dispatch }: ProgressViewProps) => {
     if (!metric) return null;
 
     return (
-      <div className="space-y-6">
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-              📊 Progreso de Métricas
-            </h3>
-            <select
-              value={selectedMetric}
-              onChange={(e) => setSelectedMetric(e.target.value)}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white font-medium"
-            >
-              {state.metrics.map(metric => (
-                <option key={metric.id} value={metric.id}>
-                  {metric.icon} {metric.name}
-                </option>
-              ))}
-            </select>
+      <div className="space-y-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-3 sm:p-4 border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">📊 Progreso de Métricas</h3>
+            <div className="min-w-[180px]">
+              <select
+                value={selectedMetric}
+                onChange={(e) => setSelectedMetric(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white text-sm"
+              >
+                {state.metrics.map(metric => (
+                  <option key={metric.id} value={metric.id}>
+                    {metric.icon} {metric.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 sm:p-6 border border-gray-200 dark:border-gray-700">
           <LineChart metric={metric} />
         </div>
       </div>
@@ -1422,7 +1414,7 @@ export const ProgressView = ({ state, dispatch }: ProgressViewProps) => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       {/* Header (hide on mobile to avoid duplication with app header) */}
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h3 className="hidden lg:block text-2xl font-bold text-gray-900 dark:text-white">
@@ -1431,47 +1423,63 @@ export const ProgressView = ({ state, dispatch }: ProgressViewProps) => {
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex gap-2 mb-6 border-b border-gray-300 dark:border-gray-600">
-        <button
-          onClick={() => setActiveTab('exercises')}
-          className={`px-4 py-2 rounded-t-lg font-medium transition-colors ${
-            activeTab === 'exercises' 
-              ? 'bg-blue-600 text-white' 
-              : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-          }`}
-        >
-          💪 Ejercicios ({exerciseData.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('cardio')}
-          className={`px-4 py-2 rounded-t-lg font-medium transition-colors ${
-            activeTab === 'cardio' 
-              ? 'bg-blue-600 text-white' 
-              : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-          }`}
-        >
-          ❤️ Cardio ({cardioData.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('metrics')}
-          className={`px-4 py-2 rounded-t-lg font-medium transition-colors ${
-            activeTab === 'metrics' 
-              ? 'bg-blue-600 text-white' 
-              : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-          }`}
-        >
-          📊 Métricas ({state.metrics.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('photos')}
-          className={`px-4 py-2 rounded-t-lg font-medium transition-colors ${
-            activeTab === 'photos' 
-              ? 'bg-blue-600 text-white' 
-              : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-          }`}
-        >
-          📸 Fotos ({photosData.length})
-        </button>
+      <div className="mb-6">
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-2 border border-gray-200 dark:border-gray-700 shadow-sm">
+          <div className="flex gap-2 overflow-x-auto">
+            <button
+              onClick={() => setActiveTab('exercises')}
+              className={`flex-shrink-0 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === 'exercises'
+                  ? 'bg-blue-600 text-white shadow'
+                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+              aria-pressed={activeTab === 'exercises'}
+            >
+              <span>💪</span>
+              <span>Ejercicios</span>
+              <span className={`ml-1 text-xs px-2 py-0.5 rounded-full ${activeTab === 'exercises' ? 'bg-white/20' : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200'}`}>{exerciseData.length}</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('cardio')}
+              className={`flex-shrink-0 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === 'cardio'
+                  ? 'bg-blue-600 text-white shadow'
+                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+              aria-pressed={activeTab === 'cardio'}
+            >
+              <span>❤️</span>
+              <span>Cardio</span>
+              <span className={`ml-1 text-xs px-2 py-0.5 rounded-full ${activeTab === 'cardio' ? 'bg-white/20' : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200'}`}>{cardioData.length}</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('metrics')}
+              className={`flex-shrink-0 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === 'metrics'
+                  ? 'bg-blue-600 text-white shadow'
+                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+              aria-pressed={activeTab === 'metrics'}
+            >
+              <span>📊</span>
+              <span>Métricas</span>
+              <span className={`ml-1 text-xs px-2 py-0.5 rounded-full ${activeTab === 'metrics' ? 'bg-white/20' : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200'}`}>{state.metrics.length}</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('photos')}
+              className={`flex-shrink-0 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === 'photos'
+                  ? 'bg-blue-600 text-white shadow'
+                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+              aria-pressed={activeTab === 'photos'}
+            >
+              <span>📸</span>
+              <span>Fotos</span>
+              <span className={`ml-1 text-xs px-2 py-0.5 rounded-full ${activeTab === 'photos' ? 'bg-white/20' : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200'}`}>{photosData.length}</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Tab Content */}

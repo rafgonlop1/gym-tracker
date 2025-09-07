@@ -14,6 +14,16 @@ export const MetricsManager = ({ state, dispatch }: MetricsManagerProps) => {
   const { user } = useAuth();
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [error, setError] = useState<string>("");
+  const [editingMetricId, setEditingMetricId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<{ name: string; unit: string; icon: string; color: string; target?: string; targetType: "decrease" | "increase" | "lower" | "higher" }>({
+    name: "",
+    unit: "",
+    icon: "📊",
+    color: "blue",
+    target: "",
+    targetType: "decrease"
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const handleDeleteMetric = async (metricId: string, metricName: string) => {
     if (!user) {
@@ -51,7 +61,63 @@ export const MetricsManager = ({ state, dispatch }: MetricsManagerProps) => {
     }
   };
 
+  const openEdit = (metricId: string) => {
+    const metric = state.metrics.find(m => m.id === metricId);
+    if (!metric) return;
+    setEditingMetricId(metricId);
+    setEditForm({
+      name: metric.name,
+      unit: metric.unit,
+      icon: metric.icon,
+      color: metric.color,
+      target: metric.target !== undefined ? String(metric.target) : "",
+      targetType: metric.targetType
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!editingMetricId) return;
+    if (!user) {
+      setError("Debes estar logueado para editar métricas");
+      return;
+    }
+    setSavingEdit(true);
+    setError("");
+    try {
+      const supabase = createSupabaseClient();
+      const db = new DatabaseService(supabase);
+      await db.updateMetric(editingMetricId, {
+        name: editForm.name,
+        unit: editForm.unit,
+        icon: editForm.icon,
+        color: editForm.color,
+        target: editForm.target !== "" ? parseFloat(editForm.target!) : undefined,
+        targetType: editForm.targetType
+      } as any);
+
+      dispatch({
+        type: "UPDATE_METRIC",
+        metricId: editingMetricId,
+        updates: {
+          name: editForm.name,
+          unit: editForm.unit,
+          icon: editForm.icon,
+          color: editForm.color,
+          target: editForm.target !== "" ? parseFloat(editForm.target!) : undefined,
+          targetType: editForm.targetType
+        }
+      });
+      setEditingMetricId(null);
+    } catch (e) {
+      console.error("Error updating metric:", e);
+      setError("Error al actualizar la métrica. Inténtalo de nuevo.");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   return (
+    <>
     <div className="max-w-4xl mx-auto px-4 py-8">
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl overflow-hidden">
         {/* Header */}
@@ -118,6 +184,12 @@ export const MetricsManager = ({ state, dispatch }: MetricsManagerProps) => {
                       >
                         📊 Ver Progreso
                       </button>
+                      <button
+                        onClick={() => openEdit(metric.id)}
+                        className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors"
+                      >
+                        ✏️ Editar
+                      </button>
                       
                       <button
                         onClick={() => handleDeleteMetric(metric.id, metric.name)}
@@ -178,5 +250,54 @@ export const MetricsManager = ({ state, dispatch }: MetricsManagerProps) => {
         </div>
       </div>
     </div>
+    {editingMetricId && (
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="w-full max-w-lg bg-white dark:bg-gray-800 rounded-xl shadow-xl">
+          <div className="px-6 py-4 border-b dark:border-gray-700 flex items-center justify-between">
+            <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Editar Métrica</h4>
+            <button onClick={() => setEditingMetricId(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">✕</button>
+          </div>
+          <div className="p-6 space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Nombre</label>
+              <input value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} className="w-full px-3 py-2 rounded-lg border dark:bg-gray-700 dark:text-white" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Unidad</label>
+                <input value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} className="w-full px-3 py-2 rounded-lg border dark:bg-gray-700 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Icono</label>
+                <input value={editForm.icon} onChange={e => setEditForm({ ...editForm, icon: e.target.value })} className="w-full px-3 py-2 rounded-lg border dark:bg-gray-700 dark:text-white" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Color</label>
+                <input value={editForm.color} onChange={e => setEditForm({ ...editForm, color: e.target.value })} className="w-full px-3 py-2 rounded-lg border dark:bg-gray-700 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Objetivo</label>
+                <input type="number" step="0.1" value={editForm.target ?? ""} onChange={e => setEditForm({ ...editForm, target: e.target.value })} className="w-full px-3 py-2 rounded-lg border dark:bg-gray-700 dark:text-white" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Tipo de objetivo</label>
+              <div className="grid grid-cols-2 gap-2">
+                {(["decrease", "increase"] as const).map(t => (
+                  <button key={t} type="button" onClick={() => setEditForm({ ...editForm, targetType: t })} className={`px-3 py-2 rounded-lg border text-sm ${editForm.targetType === t ? 'bg-indigo-600 text-white border-indigo-600' : 'dark:border-gray-600'}`}>{t === 'decrease' ? '↓ Reducir' : '↑ Aumentar'}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="px-6 py-4 border-t dark:border-gray-700 flex justify-end gap-2">
+            <button onClick={() => setEditingMetricId(null)} className="px-4 py-2 rounded-lg border dark:border-gray-600">Cancelar</button>
+            <button onClick={saveEdit} disabled={savingEdit} className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50">{savingEdit ? 'Guardando...' : 'Guardar cambios'}</button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 };

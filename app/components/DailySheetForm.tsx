@@ -153,6 +153,15 @@ export const DailySheetForm = ({ state, dispatch }: DailySheetFormProps) => {
     });
   };
 
+  const getGradientForMetricColor = (color: string) => {
+    return color === 'blue' ? 'from-blue-400 to-blue-600' :
+      color === 'green' ? 'from-green-400 to-green-600' :
+      color === 'orange' ? 'from-orange-400 to-orange-600' :
+      color === 'purple' ? 'from-purple-400 to-purple-600' :
+      color === 'red' ? 'from-red-400 to-red-600' :
+      'from-gray-400 to-gray-600';
+  };
+
   return (
     <div className="max-w-2xl mx-auto">
       <div className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
@@ -216,7 +225,7 @@ export const DailySheetForm = ({ state, dispatch }: DailySheetFormProps) => {
             <div className="space-y-3">
               {dayWorkouts.map((workout, index) => (
                 <div key={workout.id} className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
                     <div className="flex items-center space-x-3">
                       <span className="text-2xl">{getWorkoutIcon(workout.workoutType)}</span>
                       <div>
@@ -229,8 +238,8 @@ export const DailySheetForm = ({ state, dispatch }: DailySheetFormProps) => {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-3">
-                      <div className="text-right">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto justify-end">
+                      <div className="text-left sm:text-right w-full">
                         <p className="text-sm font-medium text-gray-900 dark:text-white">
                           {formatDuration(workout.totalDuration, workout.startTime, workout.endTime)}
                         </p>
@@ -242,7 +251,7 @@ export const DailySheetForm = ({ state, dispatch }: DailySheetFormProps) => {
                         onClick={() => {
                           dispatch({ type: "EDIT_WORKOUT_SESSION", workoutId: workout.id });
                         }}
-                        className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-lg transition-colors"
+                        className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-lg transition-colors shrink-0"
                         title="Editar entrenamiento"
                       >
                         ✏️ Editar
@@ -253,7 +262,7 @@ export const DailySheetForm = ({ state, dispatch }: DailySheetFormProps) => {
                             dispatch({ type: "DELETE_WORKOUT_SESSION", workoutId: workout.id });
                           }
                         }}
-                        className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded-lg transition-colors"
+                        className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded-lg transition-colors shrink-0"
                         title="Eliminar entrenamiento"
                       >
                         🗑️
@@ -374,95 +383,138 @@ export const DailySheetForm = ({ state, dispatch }: DailySheetFormProps) => {
           )}
         </div>
 
-        {/* Metrics Section */}
-        <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+        {/* Metrics Section styled like dashboard cards */}
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-6 mb-6">
           <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4 flex items-center space-x-2">
             <span>📊</span>
             <span>Métricas del Día</span>
           </h4>
+          <div className="grid grid-cols-1 gap-4">
+            {state.metrics.map((metric) => {
+              const latestValue = getLatestValue(metric);
+              const progress = metric.target
+                ? (() => {
+                    if (latestValue == null) return null;
+                    const wantsLower = metric.targetType === "lower" || metric.targetType === "decrease";
+                    if (wantsLower) {
+                      if (latestValue <= 0) return 0; // avoid division by zero
+                      return (metric.target! / latestValue) * 100;
+                    }
+                    return (latestValue / metric.target!) * 100;
+                  })()
+                : null;
+              const clampedProgress = progress !== null ? Math.min(100, Math.max(0, progress)) : null;
+              return (
+              <button
+                type="button"
+                key={metric.id}
+                onClick={() => dispatch({ type: "SET_VIEW", view: "progress", metricId: metric.id })}
+                className="text-left group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer transform hover:-translate-y-0.5 overflow-hidden border border-gray-200 dark:border-gray-700"
+              >
+                <div className={`absolute inset-0 opacity-5 bg-gradient-to-br ${
+                  metric.color === 'blue' ? 'from-blue-500 to-blue-600' :
+                  metric.color === 'green' ? 'from-green-500 to-green-600' :
+                  metric.color === 'orange' ? 'from-orange-500 to-orange-600' :
+                  metric.color === 'purple' ? 'from-purple-500 to-purple-600' :
+                  metric.color === 'red' ? 'from-red-500 to-red-600' :
+                  'from-gray-500 to-gray-600'
+                }`}></div>
+                <div className="relative flex items-start justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="text-3xl transform group-hover:scale-110 transition-transform">{metric.icon}</div>
+                    <div>
+                      <h5 className="font-bold text-lg text-gray-900 dark:text-white">{metric.name}</h5>
+                      {metric.measurements.length > 0 && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{metric.measurements[metric.measurements.length - 1]?.date}</p>
+                      )}
+                    </div>
+                  </div>
+                  {latestValue !== null && (
+                    <div className="text-right">
+                      <p className="text-3xl font-bold text-gray-900 dark:text-white">
+                        {latestValue}
+                        <span className="ml-1 text-base text-gray-500 dark:text-gray-400">{metric.unit}</span>
+                      </p>
+                    </div>
+                  )}
+                </div>
+                {metric.target && latestValue !== null && (
+                  <div className="mt-3 space-y-2">
+                    <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400">
+                      <span>Objetivo: {metric.target}{metric.unit}</span>
+                      <span className="font-medium">{progress?.toFixed(0)}%</span>
+                    </div>
+                    <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-500 rounded-full bg-gradient-to-r ${getGradientForMetricColor(metric.color)}`}
+                        style={{ width: `${clampedProgress}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
+              </button>
+            );})}
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {state.metrics.map((metric) => (
-            <div key={metric.id} className={`p-4 rounded-lg border-2 ${getColorClasses(metric.color)}`}>
-              <div className="flex items-center space-x-3 mb-3">
-                <span className="text-2xl">{metric.icon}</span>
-                <div className="flex-1">
-                  <h4 className="font-semibold text-lg">{metric.name}</h4>
-                  <p className="text-sm opacity-75">
-                    Unidad: {metric.unit}
-                    {metric.target && ` • Objetivo: ${metric.target}${metric.unit}`}
-                  </p>
+            <div key={metric.id} className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="md:col-span-1">
+                  <label className="block text-sm font-medium mb-1">
+                    Valor ({metric.unit})
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={measurements[metric.id]?.value || ""}
+                    onChange={(e) => handleValueChange(metric.id, 'value', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white bg-white"
+                    placeholder={`ej. ${getLatestValue(metric) || "0"}`}
+                  />
                 </div>
-                {getLatestValue(metric) && (
-                  <div className="text-right">
-                    <p className="text-sm opacity-75">Último valor</p>
-                    <p className="font-semibold">{getLatestValue(metric)}{metric.unit}</p>
-                  </div>
-                )}
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium mb-1">
+                    Notas (opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={measurements[metric.id]?.notes || ""}
+                    onChange={(e) => handleValueChange(metric.id, 'notes', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white bg-white"
+                    placeholder="Estado de ánimo, observaciones..."
+                  />
+                </div>
               </div>
-
-              <div className="space-y-3">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="md:col-span-1">
-                    <label className="block text-sm font-medium mb-1">
-                      Valor ({metric.unit})
-                    </label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={measurements[metric.id]?.value || ""}
-                      onChange={(e) => handleValueChange(metric.id, 'value', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white bg-white"
-                      placeholder={`ej. ${getLatestValue(metric) || "0"}`}
-                    />
-                  </div>
-                  
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium mb-1">
-                      Notas (opcional)
-                    </label>
-                    <input
-                      type="text"
-                      value={measurements[metric.id]?.notes || ""}
-                      onChange={(e) => handleValueChange(metric.id, 'notes', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white bg-white"
-                      placeholder="Estado de ánimo, observaciones..."
-                    />
-                  </div>
-                </div>
-                
-                {/* Show delete button if there's an existing measurement */}
-                {metric.measurements.find(m => m.date === date) && (
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (confirm('¿Estás seguro de que quieres eliminar esta medición?')) {
-                          try {
-                            const supabase = createSupabaseClient();
-                            const db = new DatabaseService(supabase);
-                            await db.deleteMeasurement(metric.id, date);
-                            dispatch({ type: "DELETE_MEASUREMENT", metricId: metric.id, date });
-                            setMeasurements(prev => {
-                              const updated = { ...prev };
-                              delete updated[metric.id];
-                              return updated;
-                            });
-                          } catch (error) {
-                            console.error('Error deleting measurement:', error);
-                            setError('Error al eliminar la medición');
-                          }
+              {metric.measurements.find(m => m.date === date) && (
+                <div className="flex justify-end mt-3">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (confirm('¿Estás seguro de que quieres eliminar esta medición?')) {
+                        try {
+                          const supabase = createSupabaseClient();
+                          const db = new DatabaseService(supabase);
+                          await db.deleteMeasurement(metric.id, date);
+                          dispatch({ type: "DELETE_MEASUREMENT", metricId: metric.id, date });
+                          setMeasurements(prev => {
+                            const updated = { ...prev };
+                            delete updated[metric.id];
+                            return updated;
+                          });
+                        } catch (error) {
+                          console.error('Error deleting measurement:', error);
+                          setError('Error al eliminar la medición');
                         }
-                      }}
-                      className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-colors flex items-center space-x-1"
-                    >
-                      <span>🗑️</span>
-                      <span>Eliminar medición de este día</span>
-                    </button>
-                  </div>
-                )}
-              </div>
+                      }
+                    }}
+                    className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-colors"
+                  >
+                    Eliminar medición de este día
+                  </button>
+                </div>
+              )}
             </div>
           ))}
 

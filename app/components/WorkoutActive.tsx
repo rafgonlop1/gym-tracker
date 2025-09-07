@@ -103,24 +103,37 @@ export function WorkoutActive({ state, dispatch }: WorkoutActiveProps) {
 
   // State for exercise search and filtering
   const [searchTerm, setSearchTerm] = useState('');
-  const [showAllExercises, setShowAllExercises] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('none');
+  const [recommendedLimit, setRecommendedLimit] = useState<number>(8);
+
+  // When workout type changes, reset to idle (no list)
+  useEffect(() => {
+    setSelectedCategory('none');
+    setSearchTerm('');
+    setRecommendedLimit(8);
+  }, [primaryCategory]);
 
   // Get unique categories
   const categories = Array.from(new Set(state.exercises.map(ex => ex.category)));
 
   // Filter exercises based on search and category
+  const hasQuery = searchTerm.trim().length > 0;
   const filteredExercises = availableExercises.filter(exercise => {
     const matchesSearch = exercise.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || exercise.category === selectedCategory;
-    const isPrimary = exercise.category === primaryCategory;
-    
-    if (!showAllExercises && !searchTerm && selectedCategory === 'all') {
-      return isPrimary;
-    }
-    
+    const matchesCategory = selectedCategory === 'all' 
+      ? true 
+      : selectedCategory === 'none' 
+        ? false 
+        : exercise.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
+
+  // Views
+  const isRecommendedView = !hasQuery && selectedCategory === primaryCategory;
+  const isIdleView = !hasQuery && selectedCategory === 'none';
+  const displayedExercises = isRecommendedView
+    ? filteredExercises.slice(0, recommendedLimit)
+    : filteredExercises;
 
   // Initialize workout session if not exists
   useEffect(() => {
@@ -191,9 +204,10 @@ export function WorkoutActive({ state, dispatch }: WorkoutActiveProps) {
   };
 
   const addCardioActivity = () => {
+    const defaultName = primaryExercises[0]?.name || "Treadmill Running";
     const activity: CardioActivity = {
       id: `cardio-${Date.now()}`,
-      name: "Nueva Actividad",
+      name: defaultName,
       duration: 30,
       intensity: 5
     };
@@ -229,6 +243,33 @@ export function WorkoutActive({ state, dispatch }: WorkoutActiveProps) {
       dispatch({ type: "CANCEL_NEW_WORKOUT" });
     }
   };
+
+  // HIIT config local UI state (must be declared before any early return)
+  const [hiitRoundsCount, setHiitRoundsCount] = useState<number>(8);
+  const [hiitWorkTime, setHiitWorkTime] = useState<number>(20);
+  const [hiitRestTime, setHiitRestTime] = useState<number>(10);
+
+  useEffect(() => {
+    if (currentWorkout?.hiitRounds && currentWorkout.hiitRounds.length > 0) {
+      setHiitRoundsCount(currentWorkout.hiitRounds.length);
+      setHiitWorkTime(currentWorkout.hiitRounds[0].workTime);
+      setHiitRestTime(currentWorkout.hiitRounds[0].restTime);
+    }
+  }, [currentWorkout?.hiitRounds]);
+
+  const totalHiitSeconds = hiitRoundsCount * (hiitWorkTime + hiitRestTime);
+  const formatSeconds = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+  };
+
+  // Auto-apply to session whenever values change
+  useEffect(() => {
+    if (!currentWorkout) return;
+    dispatch({ type: "SET_HIIT_CONFIG", rounds: hiitRoundsCount, workTime: hiitWorkTime, restTime: hiitRestTime });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hiitRoundsCount, hiitWorkTime, hiitRestTime]);
 
   if (!currentWorkout) {
     return (
@@ -324,10 +365,9 @@ export function WorkoutActive({ state, dispatch }: WorkoutActiveProps) {
                       onChange={(e) => setSelectedCategory(e.target.value)}
                       className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                     >
+                      <option value="none">Selecciona una categoría…</option>
+                      <option value={primaryCategory} className="font-semibold">⭐ {primaryCategory.replace('-', ' ').toUpperCase()} (Recomendado)</option>
                       <option value="all">Todas las categorías</option>
-                      <option value={primaryCategory} className="font-semibold">
-                        ⭐ {primaryCategory.replace('-', ' ').toUpperCase()} (Recomendado)
-                      </option>
                       <option disabled>─────────────────</option>
                       {categories.filter(cat => cat !== primaryCategory).map(category => (
                         <option key={category} value={category}>
@@ -335,32 +375,33 @@ export function WorkoutActive({ state, dispatch }: WorkoutActiveProps) {
                         </option>
                       ))}
                     </select>
-                    
-                    <button
-                      onClick={() => setShowAllExercises(!showAllExercises)}
-                      className={`px-4 py-2 rounded-lg transition-colors duration-200 flex items-center gap-2 ${
-                        showAllExercises
-                          ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                      }`}
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        {showAllExercises ? (
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                        ) : (
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        )}
-                      </svg>
-                      {showAllExercises ? 'Solo recomendados' : 'Ver todos'}
-                    </button>
                   </div>
                   
-                  {!showAllExercises && !searchTerm && selectedCategory === 'all' && (
+                  {isIdleView && (
+                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/40 px-3 py-2 rounded-lg">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>Elige una categoría o busca para ver ejercicios.</span>
+                    </div>
+                  )}
+
+                  {isRecommendedView && (
                     <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-3 py-2 rounded-lg">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      <span>Mostrando ejercicios recomendados para {workoutTypeConfig?.name}. Haz clic en "Ver todos" para más opciones.</span>
+                      <span>
+                        Mostrando {Math.min(recommendedLimit, filteredExercises.length)} de {filteredExercises.length} ejercicios recomendados para {workoutTypeConfig?.name}.
+                      </span>
+                      {filteredExercises.length > recommendedLimit && (
+                        <button
+                          onClick={() => setRecommendedLimit(l => l + 8)}
+                          className="ml-auto text-blue-700 dark:text-blue-300 underline"
+                        >
+                          Ver más
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -368,7 +409,7 @@ export function WorkoutActive({ state, dispatch }: WorkoutActiveProps) {
               
               {/* Exercise Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {filteredExercises.map((exercise) => {
+                {displayedExercises.map((exercise) => {
                   const isPrimary = exercise.category === primaryCategory;
                   return (
                     <button
@@ -409,7 +450,7 @@ export function WorkoutActive({ state, dispatch }: WorkoutActiveProps) {
                 })}
               </div>
               
-              {filteredExercises.length === 0 && (
+              {displayedExercises.length === 0 && (
                 <div className="text-center py-8">
                   <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -421,8 +462,8 @@ export function WorkoutActive({ state, dispatch }: WorkoutActiveProps) {
                   <button
                     onClick={() => {
                       setSearchTerm('');
-                      setSelectedCategory('all');
-                      setShowAllExercises(false);
+                      setSelectedCategory(primaryCategory);
+                      setRecommendedLimit(8);
                     }}
                     className="mt-4 text-blue-500 hover:text-blue-600 text-sm"
                   >
@@ -437,47 +478,45 @@ export function WorkoutActive({ state, dispatch }: WorkoutActiveProps) {
               {currentWorkout.exercises?.map((exercise, exerciseIndex) => (
                 <div key={`${exercise.exerciseId}-${exerciseIndex}`} className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm">
                   <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                          {exercise.exerciseName}
-                        </h3>
-                        {/* History toggle on mobile */}
-                        <button
-                          onClick={() => toggleHistory(`${exercise.exerciseId}-${exerciseIndex}`)}
-                          className="px-2 py-0.5 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
-                        >
-                          Historial
-                        </button>
-                      </div>
-                      {/* Inline last session summary */}
-                      {(() => {
-                        const history = getRecentExerciseHistory(exercise, 1);
-                        if (history.length === 0) return null;
-                        const last = history[0];
-                        return (
-                          <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                            Última vez ({new Date(last.date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}): {formatSetSummary(last.sets)}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                    <div className="flex space-x-2">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      {exercise.exerciseName}
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => toggleHistory(`${exercise.exerciseId}-${exerciseIndex}`)}
+                        className="px-2 py-1 text-xs rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                      >
+                        Historial
+                      </button>
                       <button
                         onClick={() => addSetToExercise(exerciseIndex)}
-                        className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
+                        className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-full bg-blue-600/90 hover:bg-blue-700 text-white text-xs shadow-sm"
+                        aria-label="Añadir set"
                       >
-                        + Set
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-white/20">+</span>
+                        <span>Set</span>
                       </button>
                       <button
                         onClick={() => removeExerciseFromWorkout(exerciseIndex)}
-                        className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-colors"
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-red-600/90 hover:bg-red-700 text-white text-xs shadow-sm"
                         title="Eliminar ejercicio"
+                        aria-label="Eliminar ejercicio"
                       >
-                        🗑️
+                        <span>🗑️</span>
                       </button>
                     </div>
                   </div>
+                  {/* Inline last session summary */}
+                  {(() => {
+                    const history = getRecentExerciseHistory(exercise, 1);
+                    if (history.length === 0) return null;
+                    const last = history[0];
+                    return (
+                      <div className="mb-2 text-xs text-gray-500 dark:text-gray-400">
+                        Última vez ({new Date(last.date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}): {formatSetSummary(last.sets)}
+                      </div>
+                    );
+                  })()}
                   {/* Collapsible history list */}
                   {openHistory[`${exercise.exerciseId}-${exerciseIndex}`] && (
                     <div className="mb-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700">
@@ -510,16 +549,18 @@ export function WorkoutActive({ state, dispatch }: WorkoutActiveProps) {
                             Set {set.setNumber}
                           </div>
                           <div className="flex items-center gap-2">
-                            <label className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-300">
-                              <input
-                                type="checkbox"
-                                checked={set.completed}
-                                onChange={(e) => updateSet(exerciseIndex, setIndex, { completed: e.target.checked })}
-                                className="w-4 h-4 text-green-600 border-gray-300 dark:border-gray-600 rounded focus:ring-green-500"
-                                aria-label={`Mark set ${set.setNumber} as completed`}
-                              />
-                              <span>Done</span>
-                            </label>
+                            <button
+                              onClick={() => updateSet(exerciseIndex, setIndex, { completed: !set.completed })}
+                              className={`px-2 py-0.5 text-xs rounded-full border transition-colors ${
+                                set.completed
+                                  ? 'bg-green-600 text-white border-green-600'
+                                  : 'bg-transparent text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600'
+                              }`}
+                              aria-pressed={set.completed}
+                              aria-label={`Mark set ${set.setNumber} as completed`}
+                            >
+                              {set.completed ? 'Done' : 'Marcar'}
+                            </button>
                             <button
                               onClick={() => removeSetFromExercise(exerciseIndex, setIndex)}
                               className="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded transition-colors"
@@ -534,10 +575,10 @@ export function WorkoutActive({ state, dispatch }: WorkoutActiveProps) {
                         <div className="grid grid-cols-3 gap-2 sm:grid-cols-6 sm:gap-3">
                           <div className="col-span-1 sm:col-span-2">
                             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Peso (kg)</label>
-                            <div className="flex items-center rounded border border-gray-300 dark:border-gray-600 overflow-hidden bg-white dark:bg-gray-800">
+                            <div className="flex items-center rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden bg-white dark:bg-gray-800">
                               <button
                                 onClick={() => updateSet(exerciseIndex, setIndex, { weight: Math.max(0, (set.weight || 0) - 2.5) })}
-                                className="px-2 py-1 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                className="w-8 h-8 grid place-items-center text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                                 aria-label="Decrease weight"
                               >
                                 −
@@ -548,12 +589,12 @@ export function WorkoutActive({ state, dispatch }: WorkoutActiveProps) {
                                 step="0.5"
                                 value={set.weight ?? ''}
                                 onChange={(e) => updateSet(exerciseIndex, setIndex, { weight: parseFloat(e.target.value) || 0 })}
-                                className="w-full px-2 py-1 text-center text-sm bg-transparent text-gray-900 dark:text-white"
+                                className="w-full h-8 px-2 text-center text-sm bg-transparent text-gray-900 dark:text-white"
                                 placeholder="0"
                               />
                               <button
                                 onClick={() => updateSet(exerciseIndex, setIndex, { weight: (set.weight || 0) + 2.5 })}
-                                className="px-2 py-1 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                className="w-8 h-8 grid place-items-center text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                                 aria-label="Increase weight"
                               >
                                 +
@@ -563,10 +604,10 @@ export function WorkoutActive({ state, dispatch }: WorkoutActiveProps) {
 
                           <div className="col-span-1 sm:col-span-2">
                             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Reps</label>
-                            <div className="flex items-center rounded border border-gray-300 dark:border-gray-600 overflow-hidden bg-white dark:bg-gray-800">
+                            <div className="flex items-center rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden bg-white dark:bg-gray-800">
                               <button
                                 onClick={() => updateSet(exerciseIndex, setIndex, { reps: Math.max(0, (set.reps || 0) - 1) })}
-                                className="px-2 py-1 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                className="w-8 h-8 grid place-items-center text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                                 aria-label="Decrease reps"
                               >
                                 −
@@ -575,12 +616,12 @@ export function WorkoutActive({ state, dispatch }: WorkoutActiveProps) {
                                 type="number"
                                 value={set.reps ?? ''}
                                 onChange={(e) => updateSet(exerciseIndex, setIndex, { reps: parseInt(e.target.value) || 0 })}
-                                className="w-full px-2 py-1 text-center text-sm bg-transparent text-gray-900 dark:text-white"
+                                className="w-full h-8 px-2 text-center text-sm bg-transparent text-gray-900 dark:text-white"
                                 placeholder="0"
                               />
                               <button
                                 onClick={() => updateSet(exerciseIndex, setIndex, { reps: (set.reps || 0) + 1 })}
-                                className="px-2 py-1 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                className="w-8 h-8 grid place-items-center text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                                 aria-label="Increase reps"
                               >
                                 +
@@ -590,10 +631,10 @@ export function WorkoutActive({ state, dispatch }: WorkoutActiveProps) {
 
                           <div className="col-span-1 sm:col-span-2">
                             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">RPE</label>
-                            <div className="flex items-center rounded border border-gray-300 dark:border-gray-600 overflow-hidden bg-white dark:bg-gray-800">
+                            <div className="flex items-center rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden bg-white dark:bg-gray-800">
                               <button
                                 onClick={() => updateSet(exerciseIndex, setIndex, { rpe: Math.max(1, (set.rpe || 1) - 1) })}
-                                className="px-2 py-1 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                className="w-8 h-8 grid place-items-center text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                                 aria-label="Decrease RPE"
                               >
                                 −
@@ -604,12 +645,12 @@ export function WorkoutActive({ state, dispatch }: WorkoutActiveProps) {
                                 max="10"
                                 value={set.rpe ?? ''}
                                 onChange={(e) => updateSet(exerciseIndex, setIndex, { rpe: parseInt(e.target.value) || 1 })}
-                                className="w-full px-2 py-1 text-center text-sm bg-transparent text-gray-900 dark:text-white"
+                                className="w-full h-8 px-2 text-center text-sm bg-transparent text-gray-900 dark:text-white"
                                 placeholder="5"
                               />
                               <button
                                 onClick={() => updateSet(exerciseIndex, setIndex, { rpe: Math.min(10, (set.rpe || 1) + 1) })}
-                                className="px-2 py-1 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                className="w-8 h-8 grid place-items-center text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                                 aria-label="Increase RPE"
                               >
                                 +
@@ -690,7 +731,10 @@ export function WorkoutActive({ state, dispatch }: WorkoutActiveProps) {
                           onChange={(e) => updateCardioActivity(index, { name: e.target.value })}
                           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                         >
-                          {availableExercises.map(exercise => (
+                          {!primaryExercises.some(ex => ex.name === activity.name) && (
+                            <option value={activity.name}>{activity.name}</option>
+                          )}
+                          {primaryExercises.map(exercise => (
                             <option key={exercise.id} value={exercise.name}>
                               {exercise.name}
                             </option>
@@ -789,19 +833,51 @@ export function WorkoutActive({ state, dispatch }: WorkoutActiveProps) {
         {/* HIIT Workouts */}
         {state.selectedWorkoutType === 'hiit' && (
           <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
               Configuración HIIT
             </h2>
             <p className="text-gray-600 dark:text-gray-400 mb-4">
-              Los entrenamientos HIIT se configurarán en una futura actualización.
-              Por ahora, puedes usar el timer existente para tus intervalos.
+              Define las series y tiempos. Puedes usar el <button onClick={() => dispatch({ type: "SET_VIEW", view: "timer" })} className="text-yellow-600 hover:underline">Timer Tabata</button> si prefieres.
             </p>
-            <button
-              onClick={() => dispatch({ type: "SET_VIEW", view: "timer" })}
-              className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white font-medium rounded-lg transition-colors"
-            >
-              Ir al Timer
-            </button>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Series</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={hiitRoundsCount}
+                  onChange={(e) => setHiitRoundsCount(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Trabajo (seg)</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={hiitWorkTime}
+                  onChange={(e) => setHiitWorkTime(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descanso (seg)</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={hiitRestTime}
+                  onChange={(e) => setHiitRestTime(Math.max(0, parseInt(e.target.value) || 0))}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                />
+              </div>
+            </div>
+
+            <div className="mt-4 text-sm text-gray-600 dark:text-gray-300">
+              Tiempo estimado: <span className="font-medium">{formatSeconds(totalHiitSeconds)}</span> ({hiitRoundsCount} × {hiitWorkTime + hiitRestTime}s)
+            </div>
+
+            {/* Summary grid removed per request */}
           </div>
         )}
 

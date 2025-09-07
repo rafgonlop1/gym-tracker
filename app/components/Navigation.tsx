@@ -28,13 +28,12 @@ export function Navigation({ currentView, dispatch, metricsCount, onCollapsedCha
   };
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: "🏠", color: "blue" },
-    { id: "daily-sheet", label: "Ficha Diaria", icon: "📋", color: "emerald" },
     { id: "workout-selection", label: "Entrenar", icon: "🏋️", color: "green" },
     { id: "calendar", label: "Calendario", icon: "📅", color: "purple" },
     { id: "progress", label: "Progreso", icon: "📈", color: "orange" },
     { id: "exercises", label: "Ejercicios", icon: "💪", color: "indigo" },
-    { id: "templates", label: "Plantillas", icon: "📄", color: "pink" },
     { id: "timer", label: "Timer", icon: "⏱️", color: "yellow" },
+    { id: "templates", label: "Plantillas", icon: "📄", color: "pink" },
   ];
 
   const isActive = (view: string) => currentView === view;
@@ -93,17 +92,7 @@ export function Navigation({ currentView, dispatch, metricsCount, onCollapsedCha
                 {!isCollapsed && (
                   <>
                     <span className="animate-fadeIn">{item.label}</span>
-                    {item.id === "daily-sheet" && metricsCount > 0 && (
-                      <span className="ml-auto bg-gray-200 dark:bg-gray-700 text-xs px-2 py-0.5 rounded-full animate-fadeIn">
-                        {metricsCount}
-                      </span>
-                    )}
                   </>
-                )}
-                {isCollapsed && (item.id === "daily-sheet" && metricsCount > 0) && (
-                  <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                    {metricsCount}
-                  </div>
                 )}
               </button>
             ))}
@@ -167,23 +156,24 @@ export function Navigation({ currentView, dispatch, metricsCount, onCollapsedCha
 
       {/* Mobile Bottom Navigation */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 z-50" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-        <div className="grid grid-cols-5 gap-1 px-2 py-2">
-          {navItems.slice(0, 5).map((item) => (
-            <button
-              key={item.id}
-              onClick={() => dispatch({ type: "SET_VIEW", view: item.id as AppView })}
-              className={`flex flex-col items-center py-2 px-1 rounded-lg transition-colors ${
-                isActive(item.id)
-                  ? "bg-gray-100 dark:bg-gray-800 text-blue-600 dark:text-blue-400"
-                  : "text-gray-600 dark:text-gray-400"
-              }`}
-              aria-current={isActive(item.id) ? 'page' : undefined}
-              aria-label={item.label}
-            >
-              <span className="text-2xl mb-1">{item.icon}</span>
-              <span className="text-xs">{item.label}</span>
-            </button>
-          ))}
+        <div className="relative px-2 py-2">
+          <div className="grid grid-cols-5 gap-1">
+            {['dashboard','calendar','progress','exercises','timer'].map((id) => {
+              const item = navItems.find(n => n.id === id)!;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => dispatch({ type: 'SET_VIEW', view: item.id as AppView })}
+                  className={`flex flex-col items-center py-2 px-1 rounded-lg transition-colors ${isActive(item.id) ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'}`}
+                  aria-current={isActive(item.id) ? 'page' : undefined}
+                  aria-label={item.label}
+                >
+                  <span className="text-2xl mb-1">{item.icon}</span>
+                  <span className="text-xs">{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </nav>
     </>

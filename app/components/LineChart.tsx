@@ -1,7 +1,30 @@
+import { useEffect, useRef, useState } from 'react';
 import type { Metric } from '~/types';
 
 // Enhanced Line Chart Component
-export const LineChart = ({ metric, width = 800, height = 400 }: { metric: Metric, width?: number, height?: number }) => {
+export const LineChart = ({ metric, width, height }: { metric: Metric, width?: number, height?: number }) => {
+    // Observe container width to render responsively on mobile/desktop
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [containerWidth, setContainerWidth] = useState<number | null>(null);
+
+    useEffect(() => {
+        if (!containerRef.current || typeof window === 'undefined') return;
+        // Initialize with current width
+        setContainerWidth(containerRef.current.getBoundingClientRect().width);
+
+        const observer = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                const nextWidth = entry.contentRect.width;
+                if (nextWidth > 0) setContainerWidth(nextWidth);
+            }
+        });
+        observer.observe(containerRef.current);
+        return () => observer.disconnect();
+    }, []);
+
+    // Base drawing size (scaled by viewBox), fall back to 800x400 for SSR
+    const baseWidth = Math.max(320, Math.round((width ?? containerWidth ?? 800)));
+    const baseHeight = Math.max(220, Math.round(height ?? (baseWidth * 0.5)));
     if (metric.measurements.length === 0) {
         return (
             <div className="flex items-center justify-center h-96 text-gray-500 dark:text-gray-400 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
@@ -14,12 +37,14 @@ export const LineChart = ({ metric, width = 800, height = 400 }: { metric: Metri
         );
     }
 
-    const paddingTop = 20;
-    const paddingBottom = 50;
-    const paddingLeft = 50;
-    const paddingRight = 20;
-    const chartWidth = width - paddingLeft - paddingRight;
-    const chartHeight = height - paddingTop - paddingBottom;
+    // Responsive paddings (slightly tighter on small screens)
+    const isNarrow = baseWidth < 480;
+    const paddingTop = 16;
+    const paddingBottom = 44;
+    const paddingLeft = isNarrow ? 40 : 50;
+    const paddingRight = 16;
+    const chartWidth = baseWidth - paddingLeft - paddingRight;
+    const chartHeight = baseHeight - paddingTop - paddingBottom;
 
     // Sort measurements by date first
     const sortedMeasurements = [...metric.measurements].sort((a, b) => 
@@ -43,7 +68,7 @@ export const LineChart = ({ metric, width = 800, height = 400 }: { metric: Metri
     const dateRange = maxDate - minDate || 1;
 
     // Create points
-    const points = sortedMeasurements.map((measurement, index) => {
+    const points = sortedMeasurements.map((measurement) => {
         const x = paddingLeft + ((new Date(measurement.date).getTime() - minDate) / dateRange) * chartWidth;
         const y = paddingTop + ((paddedMax - measurement.value) / paddedRange) * chartHeight;
         return { x, y, value: measurement.value, date: measurement.date };
@@ -75,15 +100,15 @@ export const LineChart = ({ metric, width = 800, height = 400 }: { metric: Metri
     const pathData = createSmoothPath(points);
 
     // Create gradient area path
-    const areaPath = pathData +
-        ` L ${points[points.length - 1].x} ${height - paddingBottom}` +
-        ` L ${points[0].x} ${height - paddingBottom} Z`;
+    const areaPath = pathData
+        ? pathData + ` L ${points[points.length - 1].x} ${baseHeight - paddingBottom}` + ` L ${points[0].x} ${baseHeight - paddingBottom} Z`
+        : '';
 
     // Target line
     const targetY = metric.target ? paddingTop + ((paddedMax - metric.target) / paddedRange) * chartHeight : null;
 
     // Generate Y-axis labels (5 labels)
-    const yAxisLabels = [];
+    const yAxisLabels = [] as Array<{ value: number; y: number }>;
     for (let i = 0; i <= 4; i++) {
         const ratio = i / 4;
         const value = paddedMin + (paddedRange * (1 - ratio));
@@ -91,20 +116,39 @@ export const LineChart = ({ metric, width = 800, height = 400 }: { metric: Metri
         yAxisLabels.push({ value, y });
     }
 
+    // Generate equidistant X-axis ticks (avoid drawing a line on the very left axis)
+    const xTickCount = 5;
+    const xAxisTicks = Array.from({ length: xTickCount }, (_, i) => {
+        const ratio = xTickCount === 1 ? 0 : i / (xTickCount - 1);
+        const x = paddingLeft + ratio * chartWidth;
+        const date = new Date(minDate + ratio * dateRange);
+        return { x, date };
+    });
+
+    // Unique ids per metric to avoid collisions across multiple SVGs
+    const idSuffix = (metric.id || 'metric').toString().replace(/[^a-zA-Z0-9_-]/g, '');
+    const gradientLineId = `lineGradient-${idSuffix}`;
+    const gradientAreaId = `areaGradient-${idSuffix}`;
+    const glowId = `glow-${idSuffix}`;
+
+    const fontSize = isNarrow ? 10 : 11;
+    const latestDotRadius = isNarrow ? 4.5 : 5;
+    const dotRadius = isNarrow ? 3.5 : 4;
+
     return (
-        <div className="w-full overflow-hidden">
-            <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto">
+        <div ref={containerRef} className="w-full overflow-hidden">
+            <svg viewBox={`0 0 ${baseWidth} ${baseHeight}`} className="w-full h-auto">
                 {/* Gradient definitions */}
                 <defs>
-                    <linearGradient id="lineGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <linearGradient id={gradientLineId} x1="0%" y1="0%" x2="0%" y2="100%">
                         <stop offset="0%" stopColor="#3b82f6" stopOpacity="1" />
                         <stop offset="100%" stopColor="#2563eb" stopOpacity="1" />
                     </linearGradient>
-                    <linearGradient id="areaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <linearGradient id={gradientAreaId} x1="0%" y1="0%" x2="0%" y2="100%">
                         <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2" />
                         <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.02" />
                     </linearGradient>
-                    <filter id="glow">
+                    <filter id={glowId}>
                         <feGaussianBlur stdDeviation="2" result="coloredBlur" />
                         <feMerge>
                             <feMergeNode in="coloredBlur" />
@@ -119,7 +163,7 @@ export const LineChart = ({ metric, width = 800, height = 400 }: { metric: Metri
                         key={`grid-${index}`}
                         x1={paddingLeft}
                         y1={label.y}
-                        x2={width - paddingRight}
+                        x2={baseWidth - paddingRight}
                         y2={label.y}
                         stroke={index === yAxisLabels.length - 1 ? "#374151" : "#e5e7eb"}
                         strokeWidth={index === yAxisLabels.length - 1 ? "2" : "1"}
@@ -128,28 +172,28 @@ export const LineChart = ({ metric, width = 800, height = 400 }: { metric: Metri
                     />
                 ))}
 
-                {/* Vertical grid lines */}
-                {points.filter((_, index) => index % Math.max(1, Math.floor(points.length / 5)) === 0).map((point, index) => (
+                {/* Vertical grid lines (equidistant, skip the leftmost/rightmost to avoid overlapping axis) */}
+                {points.length > 1 && xAxisTicks.slice(1, -1).map((tick, index) => (
                     <line
                         key={`vgrid-${index}`}
-                        x1={point.x}
+                        x1={tick.x}
                         y1={paddingTop}
-                        x2={point.x}
-                        y2={height - paddingBottom}
+                        x2={tick.x}
+                        y2={baseHeight - paddingBottom}
                         stroke="#e5e7eb"
                         strokeWidth="1"
-                        opacity="0.3"
-                        strokeDasharray="2,2"
+                        opacity="0.2"
+                        strokeDasharray="2,3"
                     />
                 ))}
 
                 {/* Target line */}
-                {metric.target && targetY && targetY >= paddingTop && targetY <= height - paddingBottom && (
+                {metric.target && targetY && targetY >= paddingTop && targetY <= baseHeight - paddingBottom && (
                     <g>
                         <line
                             x1={paddingLeft}
                             y1={targetY}
-                            x2={width - paddingRight}
+                            x2={baseWidth - paddingRight}
                             y2={targetY}
                             stroke="#ef4444"
                             strokeWidth="2"
@@ -157,10 +201,10 @@ export const LineChart = ({ metric, width = 800, height = 400 }: { metric: Metri
                             opacity="0.7"
                         />
                         <text
-                            x={width - paddingRight - 5}
+                            x={baseWidth - paddingRight - 5}
                             y={targetY - 5}
                             fill="#ef4444"
-                            fontSize="11"
+                            fontSize={fontSize}
                             textAnchor="end"
                             className="font-medium"
                         >
@@ -170,22 +214,22 @@ export const LineChart = ({ metric, width = 800, height = 400 }: { metric: Metri
                 )}
 
                 {/* Area under the curve */}
-                <path
-                    d={areaPath}
-                    fill="url(#areaGradient)"
-                    stroke="none"
-                />
+                {areaPath && (
+                    <path d={areaPath} fill={`url(#${gradientAreaId})`} stroke="none" />
+                )}
 
                 {/* Main line */}
-                <path
-                    d={pathData}
-                    fill="none"
-                    stroke="url(#lineGradient)"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    filter="url(#glow)"
-                />
+                {pathData && (
+                    <path
+                        d={pathData}
+                        fill="none"
+                        stroke={`url(#${gradientLineId})`}
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        filter={`url(#${glowId})`}
+                    />
+                )}
 
                 {/* Data points */}
                 {points.map((point, index) => {
@@ -197,7 +241,7 @@ export const LineChart = ({ metric, width = 800, height = 400 }: { metric: Metri
                             <circle
                                 cx={point.x}
                                 cy={point.y}
-                                r={isLatest ? "5" : "4"}
+                                r={isLatest ? `${latestDotRadius}` : `${dotRadius}`}
                                 fill={isTarget ? "#10b981" : "#3b82f6"}
                                 stroke="white"
                                 strokeWidth="2"
@@ -233,7 +277,7 @@ export const LineChart = ({ metric, width = 800, height = 400 }: { metric: Metri
                                         x={point.x}
                                         y={point.y - 18}
                                         fill="white"
-                                        fontSize="12"
+                                        fontSize={isNarrow ? 11 : 12}
                                         textAnchor="middle"
                                         className="font-semibold"
                                     >
@@ -252,7 +296,7 @@ export const LineChart = ({ metric, width = 800, height = 400 }: { metric: Metri
                         x={paddingLeft - 10}
                         y={label.y + 4}
                         fill="#6b7280"
-                        fontSize="11"
+                        fontSize={fontSize}
                         textAnchor="end"
                         className="font-medium"
                     >
@@ -260,22 +304,18 @@ export const LineChart = ({ metric, width = 800, height = 400 }: { metric: Metri
                     </text>
                 ))}
 
-                {/* X-axis labels */}
-                {points.filter((_, index) => {
-                    if (points.length <= 7) return true;
-                    if (index === 0 || index === points.length - 1) return true;
-                    return index % Math.max(1, Math.floor(points.length / 5)) === 0;
-                }).map((point, index, filteredPoints) => (
+                {/* X-axis labels aligned with equidistant ticks */}
+                {xAxisTicks.map((tick, index) => (
                     <g key={`x-label-${index}`}>
                         <text
-                            x={point.x}
-                            y={height - paddingBottom + 20}
+                            x={tick.x}
+                            y={baseHeight - paddingBottom + 20}
                             fill="#6b7280"
-                            fontSize="11"
-                            textAnchor={index === 0 ? "start" : index === filteredPoints.length - 1 ? "end" : "middle"}
+                            fontSize={fontSize}
+                            textAnchor={index === 0 ? "start" : index === xTickCount - 1 ? "end" : "middle"}
                             className="font-medium"
                         >
-                            {new Date(point.date).toLocaleDateString('es-ES', {
+                            {tick.date.toLocaleDateString('es-ES', {
                                 month: 'short',
                                 day: 'numeric'
                             })}
@@ -288,7 +328,7 @@ export const LineChart = ({ metric, width = 800, height = 400 }: { metric: Metri
                     x1={paddingLeft}
                     y1={paddingTop}
                     x2={paddingLeft}
-                    y2={height - paddingBottom}
+                    y2={baseHeight - paddingBottom}
                     stroke="#374151"
                     strokeWidth="2"
                 />
@@ -298,7 +338,7 @@ export const LineChart = ({ metric, width = 800, height = 400 }: { metric: Metri
                     x={15}
                     y={paddingTop + chartHeight / 2}
                     fill="#6b7280"
-                    fontSize="12"
+                    fontSize={isNarrow ? 11 : 12}
                     textAnchor="middle"
                     transform={`rotate(-90, 15, ${paddingTop + chartHeight / 2})`}
                     className="font-medium"

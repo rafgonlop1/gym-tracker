@@ -19,7 +19,7 @@ import { Auth } from "~/components/Auth";
 import { useAuth } from "~/hooks/useAuth";
 import { createSupabaseClient } from "~/lib/supabase.client";
 import { DatabaseService } from "~/services/database";
-import { getLatestValue, getPreviousValue, getTrend, getTrendIcon, getTrendColor, getColorClasses } from "~/utils/helpers";
+// Removed dashboard metrics grid helpers
 import { v4 as uuidv4 } from 'uuid';
 
 export const meta: MetaFunction = () => {
@@ -110,8 +110,9 @@ export default function Dashboard() {
               endTime: session.endTime,
               totalDuration: session.totalDuration,
               completed: session.completed,
-              exercises: session.exercises || [],
-              cardioActivities: session.cardioActivities || []
+              // Important: only send exercises/cardio if present to avoid wiping
+              exercises: session.exercises !== undefined ? session.exercises : undefined,
+              cardioActivities: session.cardioActivities !== undefined ? session.cardioActivities : undefined
             });
           } else if (!alreadyPersisted) {
             // Create new session in database
@@ -126,12 +127,27 @@ export default function Dashboard() {
               exercises: exercises || [],
               cardioActivities: cardioActivities || []
             });
-            
-            // Mark this session as persisted only for new sessions
-            setPersistedWorkoutIds(prev => new Set(prev).add(session.id));
+
+            // Replace local temporary ID with DB ID to enable future updates
+            if (newSession?.id) {
+              dispatch({ type: "REPLACE_WORKOUT_SESSION_ID", localId: session.id, dbId: newSession.id });
+              setPersistedWorkoutIds(prev => new Set(prev).add(newSession.id));
+            } else {
+              // Fallback to mark the local one as persisted if no id returned
+              setPersistedWorkoutIds(prev => new Set(prev).add(session.id));
+            }
           }
         } catch (error) {
           console.error('Error saving workout session to database:', error);
+          console.log('Session that failed to save:', {
+            id: session.id,
+            date: session.date,
+            workoutType: session.workoutType,
+            hasExercises: !!session.exercises?.length,
+            hasCardio: !!session.cardioActivities?.length,
+            totalDuration: session.totalDuration,
+            endTime: session.endTime
+          });
           // You might want to show a toast notification here
         }
       }
@@ -317,10 +333,9 @@ export default function Dashboard() {
   // Mobile header metadata per view
   const viewHeaderMap: Record<string, { icon: string; title: string }> = {
     dashboard: { icon: '💪', title: 'Gym Tracker' },
-    'daily-sheet': { icon: '📋', title: 'Ficha Diaria' },
     'add-metric': { icon: '➕', title: 'Nueva Métrica' },
     exercises: { icon: '💪', title: 'Ejercicios' },
-    calendar: { icon: '📅', title: 'Calendario - Ficha Diaria' },
+    calendar: { icon: '📅', title: 'Calendario' },
     progress: { icon: '📈', title: 'Progreso' },
     timer: { icon: '⏱️', title: 'Timer' },
     'workout-selection': { icon: '🏋️', title: 'Iniciar Entrenamiento' },
@@ -331,8 +346,6 @@ export default function Dashboard() {
 
   const renderContent = () => {
     switch (state.view) {
-      case "daily-sheet":
-        return <ViewTransition><DailySheetForm state={state} dispatch={dispatch} /></ViewTransition>;
       case "add-metric":
         return <ViewTransition><AddMetricForm dispatch={dispatch} /></ViewTransition>;
       case "manage-metrics":
@@ -404,193 +417,14 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Metrics Section Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-            📊 Métricas de Salud y Progreso
-          </h2>
+        {/* Daily Sheet */}
+        <div className="mb-10">
+          <DailySheetForm state={state} dispatch={dispatch} />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
-          {state.metrics.length === 0 ? (
-            <div className="col-span-full bg-white dark:bg-gray-800 rounded-2xl p-12 text-center border-2 border-dashed border-gray-300 dark:border-gray-700">
-              <div className="text-6xl mb-4">📊</div>
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No hay métricas aún</h3>
-              <p className="text-gray-600 dark:text-gray-400 mb-6">Comienza agregando tu primera métrica para trackear tu progreso</p>
-              <button
-                onClick={() => dispatch({ type: "SET_VIEW", view: "add-metric" })}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg transition-colors"
-              >
-                Agregar Métrica
-              </button>
-            </div>
-          ) : (
-            state.metrics.map((metric) => {
-              const latestValue = getLatestValue(metric);
-              const previousValue = getPreviousValue(metric);
-              const trend = getTrend(metric);
-              const progress = metric.target ? ((latestValue ?? 0) / metric.target) * 100 : null;
-              
-              return (
-                <div
-                  key={metric.id}
-                  className="group relative bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer transform hover:-translate-y-1 overflow-hidden"
-                  onClick={() => dispatch({ type: "SET_VIEW", view: "progress", metricId: metric.id })}
-                >
-                  <div className={`absolute inset-0 opacity-5 bg-gradient-to-br ${
-                    metric.color === 'blue' ? 'from-blue-500 to-blue-600' :
-                    metric.color === 'green' ? 'from-green-500 to-green-600' :
-                    metric.color === 'orange' ? 'from-orange-500 to-orange-600' :
-                    metric.color === 'purple' ? 'from-purple-500 to-purple-600' :
-                    metric.color === 'red' ? 'from-red-500 to-red-600' :
-                    'from-gray-500 to-gray-600'
-                  }`}></div>
-                  
-                  <div className="relative">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center space-x-3">
-                        <div className="text-3xl transform group-hover:scale-110 transition-transform">{metric.icon}</div>
-                        <div>
-                          <h3 className="font-bold text-lg text-gray-900 dark:text-white">{metric.name}</h3>
-                          {metric.measurements.length > 0 && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">{metric.measurements[metric.measurements.length - 1]?.date}</p>
-                          )}
-                        </div>
-                      </div>
-                      <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-sm font-medium ${
-                        trend === 'up' && metric.targetType === 'increase' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                        trend === 'down' && metric.targetType === 'decrease' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                        trend === 'up' && metric.targetType === 'decrease' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
-                        trend === 'down' && metric.targetType === 'increase' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
-                        'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
-                      }`}>
-                        <span>{getTrendIcon(trend)}</span>
-                        {latestValue !== null && previousValue !== null && (
-                          <span>{Math.abs(latestValue - previousValue).toFixed(1)}</span>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-3">
-                      <div className="flex items-baseline space-x-2">
-                        <span className="text-4xl font-bold text-gray-900 dark:text-white">{latestValue ?? "—"}</span>
-                        <span className="text-lg text-gray-500 dark:text-gray-400">{metric.unit}</span>
-                      </div>
-                      
-                      {previousValue !== null && (
-                        <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-                          <span>Anterior: {previousValue}{metric.unit}</span>
-                          {previousValue !== 0 ? (
-                            <span className={`font-medium ${getTrendColor(trend, metric.targetType)}`}>
-                              {trend === "down" ? "↓" : trend === "up" ? "↑" : "→"}
-                              {((Math.abs((latestValue ?? 0) - previousValue) / Math.abs(previousValue)) * 100).toFixed(0)}%
-                            </span>
-                          ) : (
-                            <span className={`font-medium ${getTrendColor(trend, metric.targetType)}`}>—</span>
-                          )}
-                        </div>
-                      )}
-                      
-                      {metric.target && progress !== null && (
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400">
-                            <span>Objetivo: {metric.target}{metric.unit}</span>
-                            <span className="font-medium">{progress.toFixed(0)}%</span>
-                          </div>
-                          <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                            <div 
-                              className={`h-full transition-all duration-500 rounded-full bg-gradient-to-r ${
-                                metric.color === 'blue' ? 'from-blue-400 to-blue-600' :
-                                metric.color === 'green' ? 'from-green-400 to-green-600' :
-                                metric.color === 'orange' ? 'from-orange-400 to-orange-600' :
-                                metric.color === 'purple' ? 'from-purple-400 to-purple-600' :
-                                metric.color === 'red' ? 'from-red-400 to-red-600' :
-                                'from-gray-400 to-gray-600'
-                              }`}
-                              style={{ width: `${Math.min(progress, 100)}%` }}
-                            ></div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
+        
 
-        <div className="mb-10 flex justify-center">
-          <button
-            onClick={() => dispatch({ type: "SET_VIEW", view: "workout-selection" })}
-            className="group relative inline-flex items-center justify-center space-x-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold py-5 px-10 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-xl hover:shadow-2xl"
-          >
-            <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 rounded-2xl transition-opacity"></div>
-            <span className="text-2xl animate-bounce">🏋️</span>
-            <span className="text-xl">Iniciar Entrenamiento</span>
-            <svg className="w-6 h-6 ml-2 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-            </svg>
-          </button>
-        </div>
-
-        <div className="bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 rounded-2xl p-6 mb-8">
-          <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-4 text-center">Resumen de Actividad</h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {[
-              { label: "Total mediciones", value: state.metrics.reduce((acc, m) => acc + m.measurements.length, 0).toString(), icon: "📊", color: "blue" },
-              { label: "Métricas activas", value: state.metrics.length.toString(), icon: "🎯", color: "green" },
-              { label: "Entrenamientos", value: state.workoutSessions.length.toString(), icon: "🏋️", color: "orange" },
-              { 
-                label: "Última medición", 
-                value: state.metrics
-                  .flatMap(m => m.measurements)
-                  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
-                  ? new Date(state.metrics.flatMap(m => m.measurements).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0].date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
-                  : "N/A", 
-                icon: "📅",
-                color: "purple"
-              },
-              { label: "Con objetivos", value: state.metrics.filter(m => m.target).length.toString(), icon: "🏆", color: "yellow" },
-            ].map((stat, index) => (
-              <div key={index} className="bg-white dark:bg-gray-800 rounded-xl p-4 text-center transform hover:scale-105 transition-transform">
-                <div className={`text-3xl mb-2 ${
-                  stat.color === 'blue' ? 'text-blue-500' :
-                  stat.color === 'green' ? 'text-green-500' :
-                  stat.color === 'orange' ? 'text-orange-500' :
-                  stat.color === 'purple' ? 'text-purple-500' :
-                  stat.color === 'yellow' ? 'text-yellow-500' :
-                  'text-gray-500'
-                }`}>{stat.icon}</div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
-                <p className="text-xs text-gray-600 dark:text-gray-400">{stat.label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {state.workoutSessions.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Actividad Reciente</h3>
-            <div className="space-y-3">
-              {state.workoutSessions.slice(-3).reverse().map((session) => (
-                <div key={session.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <div className="text-2xl">{workoutTypes.find(wt => wt.id === session.workoutType)?.icon || '🏋️'}</div>
-                    <div>
-                      <p className="font-medium text-gray-900 dark:text-white">{workoutTypes.find(wt => wt.id === session.workoutType)?.name || session.workoutType}</p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">{new Date(session.date).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium text-gray-900 dark:text-white">{session.totalDuration || 0} min</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">{session.exercises?.length || 0} ejercicios</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        
       </main>
     </div>
   );
@@ -614,10 +448,16 @@ export default function Dashboard() {
                   <div className="text-3xl">{activeHeader.icon}</div>
                   <h1 className="text-xl font-bold text-gray-900 dark:text-white">{activeHeader.title}</h1>
                 </div>
-                <button className="relative group">
-                  <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium shadow-lg">U</div>
-                  <div className="absolute top-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-900"></div>
-                </button>
+                {state.view !== 'workout-selection' && (
+                  <button
+                    onClick={() => dispatch({ type: "SET_VIEW", view: "workout-selection" })}
+                    className="flex items-center justify-center h-10 px-3 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
+                    aria-label="Iniciar entrenamiento"
+                  >
+                    <span className="mr-1">🏋️</span>
+                    <span className="text-sm font-medium">Entrenar</span>
+                  </button>
+                )}
               </div>
             </div>
           </header>

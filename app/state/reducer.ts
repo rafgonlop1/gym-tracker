@@ -1,5 +1,5 @@
 // app/state/reducer.ts
-import type { AppState, Metric, Exercise, ExerciseCategory, WorkoutSession, WorkoutExercise, ExerciseSet, CardioActivity, DailyPhotos, DailyPhoto, WorkoutTemplate } from '~/types';
+import type { AppState, Metric, Exercise, ExerciseCategory, WorkoutSession, WorkoutExercise, ExerciseSet, CardioActivity, DailyPhotos, DailyPhoto, WorkoutTemplate, HIITRound } from '~/types';
 import { v4 as uuidv4 } from "uuid";
 
 // Reducer for state management
@@ -60,6 +60,14 @@ export function appReducer(state: AppState, action: any): AppState {
       return {
         ...state,
         metrics: state.metrics.filter(metric => metric.id !== action.metricId)
+      };
+
+    case "UPDATE_METRIC":
+      return {
+        ...state,
+        metrics: state.metrics.map(metric =>
+          metric.id === action.metricId ? { ...metric, ...action.updates } : metric
+        )
       };
     
     case "DELETE_MEASUREMENT":
@@ -213,6 +221,48 @@ export function appReducer(state: AppState, action: any): AppState {
           cardioActivities: updatedActivities
         }
       };
+
+    case "SET_HIIT_CONFIG": {
+      if (!state.currentWorkoutSession) return state;
+      const roundsCount: number = Math.max(1, parseInt(action.rounds) || 1);
+      const workTime: number = Math.max(1, parseInt(action.workTime) || 1);
+      const restTime: number = Math.max(0, parseInt(action.restTime) || 0);
+
+      const hiitRounds: HIITRound[] = Array.from({ length: roundsCount }, (_, idx) => ({
+        roundNumber: idx + 1,
+        workTime,
+        restTime,
+        exercises: [],
+        completed: false
+      }));
+
+      return {
+        ...state,
+        currentWorkoutSession: {
+          ...state.currentWorkoutSession,
+          hiitRounds
+        }
+      };
+    }
+
+    case "UPDATE_HIIT_ROUND": {
+      if (!state.currentWorkoutSession?.hiitRounds) return state;
+      const index: number = action.roundIndex;
+      if (index < 0 || index >= state.currentWorkoutSession.hiitRounds.length) return state;
+      const updatedRounds = [...state.currentWorkoutSession.hiitRounds];
+      updatedRounds[index] = {
+        ...updatedRounds[index],
+        ...action.updates
+      } as HIITRound;
+
+      return {
+        ...state,
+        currentWorkoutSession: {
+          ...state.currentWorkoutSession,
+          hiitRounds: updatedRounds
+        }
+      };
+    }
     
     case "FINISH_WORKOUT_SESSION":
       if (!state.currentWorkoutSession) return state;
@@ -256,7 +306,7 @@ export function appReducer(state: AppState, action: any): AppState {
         currentWorkoutSession: undefined,
         selectedWorkoutType: undefined,
         selectedDate: undefined,
-        view: isEditing ? "daily-sheet" : "dashboard",
+        view: "dashboard",
         lastWorkoutUpdate: Date.now() // Add timestamp to trigger updates
       };
     
@@ -280,6 +330,16 @@ export function appReducer(state: AppState, action: any): AppState {
           ...action.updates
         }
       };
+
+    case "REPLACE_WORKOUT_SESSION_ID": {
+      const { localId, dbId } = action;
+      return {
+        ...state,
+        workoutSessions: state.workoutSessions.map(w =>
+          w.id === localId ? { ...w, id: dbId } : w
+        )
+      };
+    }
     
     case "DELETE_WORKOUT_SESSION":
       console.log('DELETE_WORKOUT_SESSION action triggered for ID:', action.workoutId);
@@ -337,7 +397,7 @@ export function appReducer(state: AppState, action: any): AppState {
         currentWorkoutSession: undefined,
         selectedWorkoutType: undefined,
         selectedDate: undefined,
-        view: "daily-sheet"
+        view: "dashboard"
       };
     
     case "CANCEL_NEW_WORKOUT":
