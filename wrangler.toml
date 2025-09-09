@@ -5,4 +5,4 @@ pages_build_output_dir = "./build/client"
 
 [vars]
 NODE_ENV = "production"
-VITE_SUPABASE_URL=https://wckofmynhlnqqoahebrb.supabase.co
+VITE_SUPABASE_URL = "https://wckofmynhlnqqoahebrb.supabase.co"
