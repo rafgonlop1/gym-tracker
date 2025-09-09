@@ -11,6 +11,8 @@
     "typecheck": "tsc"
   },
   "dependencies": {
+    "@remix-run/cloudflare-pages": "*",
+    "@remix-run/dev": "*",
     "@remix-run/node": "*",
     "@remix-run/react": "*",
     "@remix-run/serve": "*",
@@ -23,7 +25,6 @@
     "uuid": "^11.1.0"
   },
   "devDependencies": {
-    "@remix-run/dev": "*",
     "@types/react": "^18.2.20",
     "@types/react-dom": "^18.2.7",
     "@types/uuid": "^10.0.0",
