@@ -1,7 +1,8 @@
 // app/routes/_index.tsx
 import type { MetaFunction } from "@remix-run/node";
-import { useReducer, useEffect, useState } from "react";
+import { useReducer, useEffect, useState, useRef } from "react";
 import { appReducer } from "~/state/reducer";
+import type { AppView } from "~/types";
 import { workoutTypes } from "~/data/defaults";
 import { DailySheetForm } from "~/components/DailySheetForm";
 import { AddMetricForm } from "~/components/AddMetricForm";
@@ -46,6 +47,99 @@ export default function Dashboard() {
   const [persistedWorkoutIds, setPersistedWorkoutIds] = useState(new Set<string>());
   const [deletedWorkoutIds, setDeletedWorkoutIds] = useState(new Set<string>());
   const [workoutUpdateTrigger, setWorkoutUpdateTrigger] = useState(0);
+
+  // Track navigation state to integrate browser back/forward with in-app views
+  const isHandlingPopRef = useRef(false);
+  const lastPushedViewRef = useRef<AppView | null>(null);
+  const stateRef = useRef(state);
+
+  const allowedViews: AppView[] = [
+    "dashboard",
+    "add-metric",
+    "manage-metrics",
+    "exercises",
+    "calendar",
+    "progress",
+    "timer",
+    "workout-selection",
+    "workout-active",
+    "templates",
+  ];
+  const isAppView = (v: string): v is AppView => (allowedViews as string[]).includes(v);
+  const hasId = (val: any): val is { id: string } => !!val && typeof val.id === 'string';
+
+  // Keep latest state available in popstate handler without re-binding listener
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  // Initialize history state and handle back/forward
+  useEffect(() => {
+    // Determine initial view from URL (supports ?view=... or #view)
+    let initialView: AppView = state.view as AppView;
+    try {
+      const url = new URL(window.location.href);
+      const urlView = url.searchParams.get('view') || window.location.hash.replace(/^#/, '');
+      if (urlView && isAppView(urlView)) initialView = urlView;
+    } catch {}
+
+    if (initialView !== state.view) {
+      dispatch({ type: "SET_VIEW", view: initialView });
+    }
+
+    // Replace current history entry with our state
+    try {
+      const currentUrl = new URL(window.location.href);
+      currentUrl.searchParams.set('view', initialView);
+      window.history.replaceState({ view: initialView }, "", currentUrl);
+      lastPushedViewRef.current = initialView;
+    } catch {}
+
+    const onPopState = (e: PopStateEvent) => {
+      isHandlingPopRef.current = true;
+      let nextView: AppView = 'dashboard';
+      const fromState = e.state && e.state.view;
+      if (typeof fromState === 'string' && isAppView(fromState)) {
+        nextView = fromState;
+      } else {
+        try {
+          const url = new URL(window.location.href);
+          const urlView = url.searchParams.get('view') || window.location.hash.replace(/^#/, '');
+          if (urlView && isAppView(urlView)) nextView = urlView;
+        } catch {}
+      }
+
+      // Guard against invalid transitions (e.g., workout-active without a session)
+      const current = stateRef.current;
+      if (nextView === 'workout-active') {
+        if (!current?.currentWorkoutSession && !current?.selectedWorkoutType) {
+          nextView = 'workout-selection';
+        }
+      }
+      lastPushedViewRef.current = nextView;
+      dispatch({ type: "SET_VIEW", view: nextView });
+      // Clear flag on next tick to allow subsequent pushes
+      setTimeout(() => { isHandlingPopRef.current = false; }, 0);
+    };
+
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Push history entry on view changes triggered within the app
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (isHandlingPopRef.current) return; // don't push when handling back/forward
+    if (lastPushedViewRef.current === state.view) return; // avoid duplicates
+
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('view', state.view);
+      window.history.pushState({ view: state.view }, "", url);
+      lastPushedViewRef.current = state.view;
+    } catch {}
+  }, [state.view]);
 
   // Load user data from Supabase
   useEffect(() => {
@@ -117,7 +211,7 @@ export default function Dashboard() {
           } else if (!alreadyPersisted) {
             // Create new session in database
             const { date, workoutType, startTime, endTime, totalDuration, completed, exercises, cardioActivities } = session;
-            const newSession = await db.createWorkoutSession(user.id, {
+            const newSession: { id?: string } | null = await db.createWorkoutSession(user.id, {
               date,
               workoutType,
               startTime,
@@ -129,9 +223,11 @@ export default function Dashboard() {
             });
 
             // Replace local temporary ID with DB ID to enable future updates
-            if (newSession?.id) {
-              dispatch({ type: "REPLACE_WORKOUT_SESSION_ID", localId: session.id, dbId: newSession.id });
-              setPersistedWorkoutIds(prev => new Set(prev).add(newSession.id));
+            const possibleId = (newSession as any)?.id;
+            if (typeof possibleId === 'string' && possibleId.length > 0) {
+              const newId = String(possibleId);
+              dispatch({ type: "REPLACE_WORKOUT_SESSION_ID", localId: session.id, dbId: newId });
+              setPersistedWorkoutIds(prev => new Set(prev).add(newId));
             } else {
               // Fallback to mark the local one as persisted if no id returned
               setPersistedWorkoutIds(prev => new Set(prev).add(session.id));
@@ -423,7 +519,7 @@ export default function Dashboard() {
         </div>
 
         
-
+        
         
       </main>
     </div>

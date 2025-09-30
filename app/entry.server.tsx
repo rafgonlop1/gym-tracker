@@ -4,13 +4,12 @@
  * For more information, see https://remix.run/file-conventions/entry.server
  */
 
-import { PassThrough } from "node:stream";
-
 import type { AppLoadContext, EntryContext } from "@remix-run/node";
-import { createReadableStreamFromReadable } from "@remix-run/node";
 import { RemixServer } from "@remix-run/react";
 import { isbot } from "isbot";
-import { renderToPipeableStream } from "react-dom/server";
+import reactDomServer from "react-dom/server";
+
+const { renderToReadableStream } = reactDomServer;
 
 const ABORT_DELAY = 5_000;
 
@@ -45,47 +44,91 @@ function handleBotRequest(
   responseHeaders: Headers,
   remixContext: EntryContext
 ) {
-  return new Promise((resolve, reject) => {
-    let shellRendered = false;
-    const { pipe, abort } = renderToPipeableStream(
-      <RemixServer
-        context={remixContext}
-        url={request.url}
-        abortDelay={ABORT_DELAY}
-      />,
-      {
-        onAllReady() {
-          shellRendered = true;
-          const body = new PassThrough();
-          const stream = createReadableStreamFromReadable(body);
-
-          responseHeaders.set("Content-Type", "text/html");
-
-          resolve(
-            new Response(stream, {
-              headers: responseHeaders,
-              status: responseStatusCode,
-            })
-          );
-
-          pipe(body);
-        },
-        onShellError(error: unknown) {
-          reject(error);
-        },
-        onError(error: unknown) {
-          responseStatusCode = 500;
-          // Log streaming rendering errors from inside the shell.  Don't log
-          // errors encountered during initial shell rendering since they'll
-          // reject and get logged in handleDocumentRequest.
-          if (shellRendered) {
-            console.error(error);
+  return new Promise(async (resolve, reject) => {
+    try {
+      if (typeof renderToReadableStream === "function") {
+        const stream = await renderToReadableStream(
+          <RemixServer
+            context={remixContext}
+            url={request.url}
+            abortDelay={ABORT_DELAY}
+          />,
+          {
+            onError(error: unknown) {
+              responseStatusCode = 500;
+              console.error(error);
+            },
           }
-        },
-      }
-    );
+        );
 
-    setTimeout(abort, ABORT_DELAY);
+        await stream.allReady;
+
+        responseHeaders.set("Content-Type", "text/html");
+        resolve(
+          new Response(stream, {
+            headers: responseHeaders,
+            status: responseStatusCode,
+          })
+        );
+        return;
+      }
+
+      if (typeof (reactDomServer as any).renderToPipeableStream === "function") {
+        // Node.js fallback: stream via renderToPipeableStream
+        // Use dynamic import to avoid bundling Node builtins in edge builds
+        const { PassThrough } = await import(/* @vite-ignore */ "node:stream").then((m: any) => m);
+        const body = new PassThrough();
+
+        const { pipe, abort } = (reactDomServer as any).renderToPipeableStream(
+          <RemixServer
+            context={remixContext}
+            url={request.url}
+            abortDelay={ABORT_DELAY}
+          />,
+          {
+            onAllReady() {
+              responseHeaders.set("Content-Type", "text/html");
+              resolve(
+                new Response(body as any, {
+                  headers: responseHeaders,
+                  status: responseStatusCode,
+                })
+              );
+              pipe(body);
+            },
+            onError(error: unknown) {
+              responseStatusCode = 500;
+              console.error(error);
+            },
+          }
+        );
+        setTimeout(abort, ABORT_DELAY);
+        return;
+      }
+
+      // Last resort: render to string (sync)
+      if (typeof (reactDomServer as any).renderToString === "function") {
+        const markup = (reactDomServer as any).renderToString(
+          <RemixServer
+            context={remixContext}
+            url={request.url}
+            abortDelay={ABORT_DELAY}
+          />
+        );
+        responseHeaders.set("Content-Type", "text/html");
+        resolve(
+          new Response(markup, {
+            headers: responseHeaders,
+            status: responseStatusCode,
+          })
+        );
+        return;
+      }
+
+      throw new Error("No compatible React SSR renderer found.");
+    } catch (error) {
+      reject(error);
+    }
   });
 }
 
@@ -95,46 +138,87 @@ function handleBrowserRequest(
   responseHeaders: Headers,
   remixContext: EntryContext
 ) {
-  return new Promise((resolve, reject) => {
-    let shellRendered = false;
-    const { pipe, abort } = renderToPipeableStream(
-      <RemixServer
-        context={remixContext}
-        url={request.url}
-        abortDelay={ABORT_DELAY}
-      />,
-      {
-        onShellReady() {
-          shellRendered = true;
-          const body = new PassThrough();
-          const stream = createReadableStreamFromReadable(body);
-
-          responseHeaders.set("Content-Type", "text/html");
-
-          resolve(
-            new Response(stream, {
-              headers: responseHeaders,
-              status: responseStatusCode,
-            })
-          );
-
-          pipe(body);
-        },
-        onShellError(error: unknown) {
-          reject(error);
-        },
-        onError(error: unknown) {
-          responseStatusCode = 500;
-          // Log streaming rendering errors from inside the shell.  Don't log
-          // errors encountered during initial shell rendering since they'll
-          // reject and get logged in handleDocumentRequest.
-          if (shellRendered) {
-            console.error(error);
+  return new Promise(async (resolve, reject) => {
+    try {
+      if (typeof renderToReadableStream === "function") {
+        const stream = await renderToReadableStream(
+          <RemixServer
+            context={remixContext}
+            url={request.url}
+            abortDelay={ABORT_DELAY}
+          />,
+          {
+            onError(error: unknown) {
+              responseStatusCode = 500;
+              console.error(error);
+            },
           }
-        },
-      }
-    );
+        );
 
-    setTimeout(abort, ABORT_DELAY);
+        await stream.allReady;
+
+        responseHeaders.set("Content-Type", "text/html");
+        resolve(
+          new Response(stream, {
+            headers: responseHeaders,
+            status: responseStatusCode,
+          })
+        );
+        return;
+      }
+
+      if (typeof (reactDomServer as any).renderToPipeableStream === "function") {
+        const { PassThrough } = await import(/* @vite-ignore */ "node:stream").then((m: any) => m);
+        const body = new PassThrough();
+
+        const { pipe, abort } = (reactDomServer as any).renderToPipeableStream(
+          <RemixServer
+            context={remixContext}
+            url={request.url}
+            abortDelay={ABORT_DELAY}
+          />,
+          {
+            onAllReady() {
+              responseHeaders.set("Content-Type", "text/html");
+              resolve(
+                new Response(body as any, {
+                  headers: responseHeaders,
+                  status: responseStatusCode,
+                })
+              );
+              pipe(body);
+            },
+            onError(error: unknown) {
+              responseStatusCode = 500;
+              console.error(error);
+            },
+          }
+        );
+        setTimeout(abort, ABORT_DELAY);
+        return;
+      }
+
+      if (typeof (reactDomServer as any).renderToString === "function") {
+        const markup = (reactDomServer as any).renderToString(
+          <RemixServer
+            context={remixContext}
+            url={request.url}
+            abortDelay={ABORT_DELAY}
+          />
+        );
+        responseHeaders.set("Content-Type", "text/html");
+        resolve(
+          new Response(markup, {
+            headers: responseHeaders,
+            status: responseStatusCode,
+          })
+        );
+        return;
+      }
+
+      throw new Error("No compatible React SSR renderer found.");
+    } catch (error) {
+      reject(error);
+    }
   });
 }
