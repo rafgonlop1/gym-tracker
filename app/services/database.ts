@@ -184,8 +184,7 @@ export class DatabaseService {
     } else {
       // Only global exercises when unauthenticated
       // Use is.null filter: in Supabase JS v2: .is('column', null)
-      // but .is is on FilterBuilder; cast by chaining directly
-      // @ts-expect-error - type inference limitation for union filter builders
+      // but .is is on FilterBuilder; chaining directly is valid here
       query = query.is('user_id', null);
     }
 
@@ -420,54 +419,68 @@ export class DatabaseService {
 
     if (sessionError) throw sessionError
 
-    // Create workout exercises
-    if (session.exercises && session.exercises.length > 0) {
-      console.log('DB:createWorkoutSession → exercises to insert:', session.exercises.length)
-      const workoutExercises = session.exercises.map((exercise, index) => ({
-        session_id: sessionData.id,
-        exercise_name: exercise.exerciseName,
-        exercise_order: index,
-        // Normalize sets to avoid nulls/undefined breaking JSON validation
-        sets: (exercise.sets || []).map(s => ({
-          setNumber: s.setNumber,
-          reps: s.reps ?? 0,
-          weight: s.weight ?? 0,
-          rpe: s.rpe ?? undefined,
-          completed: !!s.completed,
-          notes: s.notes ?? undefined
-        })),
-        notes: exercise.notes
-      }))
+    try {
+      // Create workout exercises
+      if (session.exercises && session.exercises.length > 0) {
+        console.log('DB:createWorkoutSession → exercises to insert:', session.exercises.length)
+        const workoutExercises = session.exercises.map((exercise, index) => ({
+          session_id: sessionData.id,
+          exercise_name: exercise.exerciseName,
+          exercise_order: index,
+          // Normalize sets to avoid nulls/undefined breaking JSON validation
+          sets: (exercise.sets || []).map(s => ({
+            setNumber: s.setNumber,
+            reps: s.reps ?? 0,
+            weight: s.weight ?? 0,
+            rpe: s.rpe ?? undefined,
+            completed: !!s.completed,
+            notes: s.notes ?? undefined
+          })),
+          notes: exercise.notes
+        }))
 
-      const { error: exercisesError } = await this.supabase
-        .from('workout_exercises')
-        .insert(workoutExercises)
+        const { error: exercisesError } = await this.supabase
+          .from('workout_exercises')
+          .insert(workoutExercises)
 
-      if (exercisesError) throw exercisesError
-      console.log('DB:createWorkoutSession → inserted workout_exercises:', workoutExercises.length)
+        if (exercisesError) throw exercisesError
+        console.log('DB:createWorkoutSession → inserted workout_exercises:', workoutExercises.length)
+      }
+
+      // Create cardio activities
+      if (session.cardioActivities && session.cardioActivities.length > 0) {
+        const cardioActivities = session.cardioActivities.map(activity => ({
+          session_id: sessionData.id,
+          name: activity.name,
+          duration: activity.duration || 0,
+          distance: activity.distance ?? null,
+          intensity: activity.intensity ?? null,
+          calories: activity.calories ?? null,
+          heart_rate_avg: activity.heartRate?.avg,
+          heart_rate_max: activity.heartRate?.max
+        }))
+
+        const { error: cardioError } = await this.supabase
+          .from('cardio_activities')
+          .insert(cardioActivities)
+
+        if (cardioError) throw cardioError
+      }
+
+      return sessionData
+    } catch (childInsertError) {
+      // Best-effort rollback to avoid orphaned session without children
+      try {
+        await this.supabase.from('cardio_activities').delete().eq('session_id', sessionData.id)
+      } catch {}
+      try {
+        await this.supabase.from('workout_exercises').delete().eq('session_id', sessionData.id)
+      } catch {}
+      try {
+        await this.supabase.from('workout_sessions').delete().eq('id', sessionData.id)
+      } catch {}
+      throw childInsertError
     }
-
-    // Create cardio activities
-    if (session.cardioActivities && session.cardioActivities.length > 0) {
-      const cardioActivities = session.cardioActivities.map(activity => ({
-        session_id: sessionData.id,
-        name: activity.name,
-        duration: activity.duration || 0,
-        distance: activity.distance ?? null,
-        intensity: activity.intensity ?? null,
-        calories: activity.calories ?? null,
-        heart_rate_avg: activity.heartRate?.avg,
-        heart_rate_max: activity.heartRate?.max
-      }))
-
-      const { error: cardioError } = await this.supabase
-        .from('cardio_activities')
-        .insert(cardioActivities)
-
-      if (cardioError) throw cardioError
-    }
-
-    return sessionData
   }
 
   async updateWorkoutSession(sessionId: string, updates: Partial<WorkoutSession>) {
@@ -491,33 +504,67 @@ export class DatabaseService {
         console.log('DB:updateWorkoutSession → skip exercises update (empty array)')
       } else {
         console.log('DB:updateWorkoutSession → syncing exercises count:', updates.exercises.length)
-        // Delete existing exercises for this session then insert provided ones
-        await this.supabase
+        // Backup current exercises to enable restore on failure
+        const { data: existingExercises } = await this.supabase
           .from('workout_exercises')
-          .delete()
+          .select('*')
           .eq('session_id', sessionId)
+          .order('exercise_order', { ascending: true })
 
-        const workoutExercises = updates.exercises.map((exercise, index) => ({
-          session_id: sessionId,
-          exercise_name: exercise.exerciseName,
-          exercise_order: index,
-          sets: (exercise.sets || []).map(s => ({
-            setNumber: s.setNumber,
-            reps: s.reps ?? 0,
-            weight: s.weight ?? 0,
-            rpe: s.rpe ?? undefined,
-            completed: !!s.completed,
-            notes: s.notes ?? undefined
-          })),
-          notes: exercise.notes
-        }))
+        try {
+          // Delete existing and insert new
+          await this.supabase
+            .from('workout_exercises')
+            .delete()
+            .eq('session_id', sessionId)
 
-        const { error: exercisesError } = await this.supabase
-          .from('workout_exercises')
-          .insert(workoutExercises)
+          const workoutExercises = updates.exercises.map((exercise, index) => ({
+            session_id: sessionId,
+            exercise_name: exercise.exerciseName,
+            exercise_order: index,
+            sets: (exercise.sets || []).map(s => ({
+              setNumber: s.setNumber,
+              reps: s.reps ?? 0,
+              weight: s.weight ?? 0,
+              rpe: s.rpe ?? undefined,
+              completed: !!s.completed,
+              notes: s.notes ?? undefined
+            })),
+            notes: exercise.notes
+          }))
 
-        if (exercisesError) throw exercisesError
-        console.log('DB:updateWorkoutSession → inserted workout_exercises:', workoutExercises.length)
+          const { error: exercisesError } = await this.supabase
+            .from('workout_exercises')
+            .insert(workoutExercises)
+
+          if (exercisesError) throw exercisesError
+          console.log('DB:updateWorkoutSession → inserted workout_exercises:', workoutExercises.length)
+        } catch (exUpdateErr) {
+          // Restore previous exercises state best-effort
+          try {
+            await this.supabase
+              .from('workout_exercises')
+              .delete()
+              .eq('session_id', sessionId)
+          } catch {}
+
+          if (existingExercises && existingExercises.length > 0) {
+            const restoreRows = existingExercises.map(ex => ({
+              session_id: sessionId,
+              exercise_name: (ex as any).exercise_name,
+              exercise_order: (ex as any).exercise_order,
+              sets: (ex as any).sets,
+              notes: (ex as any).notes ?? null
+            }))
+            try {
+              await this.supabase
+                .from('workout_exercises')
+                .insert(restoreRows)
+            } catch {}
+          }
+
+          throw exUpdateErr
+        }
       }
     }
 
@@ -528,28 +575,65 @@ export class DatabaseService {
         console.log('DB:updateWorkoutSession → skip cardio update (empty array)')
       } else {
         console.log('DB:updateWorkoutSession → syncing cardio count:', updates.cardioActivities.length)
-        await this.supabase
+        // Backup current cardio to enable restore on failure
+        const { data: existingCardio } = await this.supabase
           .from('cardio_activities')
-          .delete()
+          .select('*')
           .eq('session_id', sessionId)
+          .order('created_at', { ascending: true })
 
-        const cardioActivities = updates.cardioActivities.map(activity => ({
-          session_id: sessionId,
-          name: activity.name,
-          duration: activity.duration || 0,
-          distance: activity.distance ?? null,
-          intensity: activity.intensity ?? null,
-          calories: activity.calories ?? null,
-          heart_rate_avg: activity.heartRate?.avg,
-          heart_rate_max: activity.heartRate?.max
-        }))
+        try {
+          await this.supabase
+            .from('cardio_activities')
+            .delete()
+            .eq('session_id', sessionId)
 
-        const { error: cardioError } = await this.supabase
-          .from('cardio_activities')
-          .insert(cardioActivities)
+          const cardioActivities = updates.cardioActivities.map(activity => ({
+            session_id: sessionId,
+            name: activity.name,
+            duration: activity.duration || 0,
+            distance: activity.distance ?? null,
+            intensity: activity.intensity ?? null,
+            calories: activity.calories ?? null,
+            heart_rate_avg: activity.heartRate?.avg,
+            heart_rate_max: activity.heartRate?.max
+          }))
 
-        if (cardioError) throw cardioError
-        console.log('DB:updateWorkoutSession → inserted cardio_activities:', cardioActivities.length)
+          const { error: cardioError } = await this.supabase
+            .from('cardio_activities')
+            .insert(cardioActivities)
+
+          if (cardioError) throw cardioError
+          console.log('DB:updateWorkoutSession → inserted cardio_activities:', cardioActivities.length)
+        } catch (cardioUpdateErr) {
+          // Restore previous cardio state best-effort
+          try {
+            await this.supabase
+              .from('cardio_activities')
+              .delete()
+              .eq('session_id', sessionId)
+          } catch {}
+
+          if (existingCardio && existingCardio.length > 0) {
+            const restoreRows = existingCardio.map(c => ({
+              session_id: sessionId,
+              name: (c as any).name,
+              duration: (c as any).duration ?? 0,
+              distance: (c as any).distance ?? null,
+              intensity: (c as any).intensity ?? null,
+              calories: (c as any).calories ?? null,
+              heart_rate_avg: (c as any).heart_rate_avg ?? null,
+              heart_rate_max: (c as any).heart_rate_max ?? null
+            }))
+            try {
+              await this.supabase
+                .from('cardio_activities')
+                .insert(restoreRows)
+            } catch {}
+          }
+
+          throw cardioUpdateErr
+        }
       }
     }
   }
