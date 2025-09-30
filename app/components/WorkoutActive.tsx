@@ -78,6 +78,30 @@ export function WorkoutActive({ state, dispatch }: WorkoutActiveProps) {
       .join(' • ');
   };
 
+  const calculateTotalVolume = (sets: ExerciseSet[]): number => {
+    if (!sets || sets.length === 0) return 0;
+    return sets.reduce((total, set) => {
+      const weight = set.weight ?? 0;
+      const reps = set.reps ?? 0;
+      return total + weight * reps;
+    }, 0);
+  };
+
+  const formatSetDetails = (sets: ExerciseSet[]) => {
+    if (!sets || sets.length === 0) return [];
+    return sets.map(set => {
+      const parts = [
+        `Set ${set.setNumber ?? ''}`.trim(),
+        `${set.weight ?? 0} kg`,
+        `${set.reps ?? 0} reps`
+      ];
+      if (set.rpe) {
+        parts.push(`RPE ${set.rpe}`);
+      }
+      return parts.join(' • ');
+    });
+  };
+
   const getRecentExerciseHistory = (exercise: WorkoutExercise, maxEntries = 5) => {
     // Sort completed sessions by start time desc
     const sessions = (state.workoutSessions || [])
@@ -506,28 +530,20 @@ export function WorkoutActive({ state, dispatch }: WorkoutActiveProps) {
                       </button>
                     </div>
                   </div>
-                  {/* Inline last sessions summary */}
+                  {/* Inline last session summary */}
                   {(() => {
-                    const history = getRecentExerciseHistory(exercise, 3);
+                    const history = getRecentExerciseHistory(exercise, 1);
                     if (history.length === 0) return null;
-                    const label = history.length > 1 ? 'Últimas sesiones:' : 'Última sesión:';
+                    const last = history[0];
+                    const totalVolume = calculateTotalVolume(last.sets);
                     return (
-                      <div className="mb-2 text-xs text-gray-500 dark:text-gray-400">
-                        <div className="font-semibold text-gray-600 dark:text-gray-300">
-                          {label}
-                        </div>
-                        <div className="mt-1 space-y-0.5">
-                          {history.map((entry, idx) => (
-                            <div key={`${entry.date}-${idx}`} className="flex items-center justify-between gap-2">
-                              <span>
-                                {new Date(entry.date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}
-                              </span>
-                              <span className="font-medium text-gray-700 dark:text-gray-200">
-                                {formatSetSummary(entry.sets)}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
+                      <div className="mb-2 text-xs text-gray-500 dark:text-gray-400 flex items-center justify-between gap-3">
+                        <span>
+                          Última sesión ({new Date(last.date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}): {formatSetSummary(last.sets)}
+                        </span>
+                        <span className="text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                          Volumen: {totalVolume} kg
+                        </span>
                       </div>
                     );
                   })()}
@@ -540,16 +556,27 @@ export function WorkoutActive({ state, dispatch }: WorkoutActiveProps) {
                           return <p className="text-xs text-gray-500 dark:text-gray-300">Sin historial previo.</p>;
                         }
                         return (
-                          <ul className="space-y-1 text-xs text-gray-700 dark:text-gray-200">
-                            {history.map((h, idx) => (
-                              <li key={idx} className="flex items-center justify-between">
-                                <span className="text-gray-500 dark:text-gray-300">
-                                  {new Date(h.date).toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short' })}
-                                </span>
-                                <span className="font-medium">{formatSetSummary(h.sets)}</span>
-                              </li>
-                            ))}
-                          </ul>
+                          <div className="space-y-3 text-xs text-gray-700 dark:text-gray-200">
+                            {history.map((h, idx) => {
+                              const detailedSets = formatSetDetails(h.sets);
+                              const totalVolume = calculateTotalVolume(h.sets);
+                              return (
+                                <div key={`${h.date}-${idx}`} className="rounded-md bg-white/40 dark:bg-black/20 p-2 border border-gray-200/60 dark:border-gray-600/40">
+                                  <div className="flex items-center justify-between mb-1 text-[11px] text-gray-500 dark:text-gray-300 uppercase tracking-wide">
+                                    <span>{new Date(h.date).toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short' })}</span>
+                                    <span>Volumen: {totalVolume} kg</span>
+                                  </div>
+                                  <ul className="space-y-1">
+                                    {detailedSets.map((detail, setIdx) => (
+                                      <li key={`${h.date}-${setIdx}`} className="font-medium text-gray-800 dark:text-gray-100">
+                                        {detail}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              );
+                            })}
+                          </div>
                         );
                       })()}
                     </div>
