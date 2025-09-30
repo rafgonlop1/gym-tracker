@@ -506,14 +506,28 @@ export function WorkoutActive({ state, dispatch }: WorkoutActiveProps) {
                       </button>
                     </div>
                   </div>
-                  {/* Inline last session summary */}
+                  {/* Inline last sessions summary */}
                   {(() => {
-                    const history = getRecentExerciseHistory(exercise, 1);
+                    const history = getRecentExerciseHistory(exercise, 3);
                     if (history.length === 0) return null;
-                    const last = history[0];
+                    const label = history.length > 1 ? 'Últimas sesiones:' : 'Última sesión:';
                     return (
                       <div className="mb-2 text-xs text-gray-500 dark:text-gray-400">
-                        Última vez ({new Date(last.date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}): {formatSetSummary(last.sets)}
+                        <div className="font-semibold text-gray-600 dark:text-gray-300">
+                          {label}
+                        </div>
+                        <div className="mt-1 space-y-0.5">
+                          {history.map((entry, idx) => (
+                            <div key={`${entry.date}-${idx}`} className="flex items-center justify-between gap-2">
+                              <span>
+                                {new Date(entry.date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}
+                              </span>
+                              <span className="font-medium text-gray-700 dark:text-gray-200">
+                                {formatSetSummary(entry.sets)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     );
                   })()}
