@@ -38,12 +38,18 @@ export async function loader({ context }: LoaderFunctionArgs<LoaderEnv>) {
     SUPABASE_URL:
       context?.SUPABASE_URL ||
       context?.VITE_SUPABASE_URL ||
-      fallbackEnv?.VITE_SUPABASE_URL!,
+      fallbackEnv?.VITE_SUPABASE_URL,
     SUPABASE_ANON_KEY:
       context?.SUPABASE_ANON_KEY ||
       context?.VITE_SUPABASE_ANON_KEY ||
-      fallbackEnv?.VITE_SUPABASE_ANON_KEY!,
+      fallbackEnv?.VITE_SUPABASE_ANON_KEY,
   };
+
+  if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) {
+    console.warn(
+      "Supabase environment variables are missing. Ensure they are defined in Wrangler (SUPABASE_URL, SUPABASE_ANON_KEY or VITE_* equivalents)."
+    );
+  }
 
   return json({ env });
 }
