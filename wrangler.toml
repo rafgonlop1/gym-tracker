@@ -1,8 +1,16 @@
 name = "gym-tracker"
+main = "server.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
-pages_build_output_dir = "./build/client"
+workers_dev = true
+
+[build]
+command = "npm run build"
 
 [vars]
 NODE_ENV = "production"
 VITE_SUPABASE_URL = "https://wckofmynhlnqqoahebrb.supabase.co"
+
+[assets]
+binding = "ASSETS"
+directory = "./build/client"

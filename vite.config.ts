@@ -3,7 +3,7 @@ import { defineConfig } from "vite";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-declare module "@remix-run/node" {
+declare module "@remix-run/cloudflare" {
   interface Future {
     v3_singleFetch: true;
   }

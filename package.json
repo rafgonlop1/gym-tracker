@@ -11,9 +11,8 @@
     "typecheck": "tsc"
   },
   "dependencies": {
-    "@remix-run/cloudflare-pages": "*",
+    "@remix-run/cloudflare": "*",
     "@remix-run/dev": "*",
-    "@remix-run/node": "*",
     "@remix-run/react": "*",
     "@remix-run/serve": "*",
     "@supabase/auth-helpers-remix": "^0.4.0",

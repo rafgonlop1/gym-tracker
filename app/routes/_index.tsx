@@ -1,5 +1,5 @@
 // app/routes/_index.tsx
-import type { MetaFunction } from "@remix-run/node";
+import type { MetaFunction } from "@remix-run/cloudflare";
 import { useReducer, useEffect, useState, useRef } from "react";
 import { appReducer } from "~/state/reducer";
 import type { AppView } from "~/types";

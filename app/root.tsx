@@ -6,8 +6,8 @@ import {
   ScrollRestoration,
   useLoaderData,
 } from "@remix-run/react";
-import type { LinksFunction, LoaderFunctionArgs } from "@remix-run/node";
-import { json } from "@remix-run/node";
+import type { LinksFunction, LoaderFunctionArgs } from "@remix-run/cloudflare";
+import { json } from "@remix-run/cloudflare";
 
 import "./tailwind.css";
 
@@ -24,11 +24,25 @@ export const links: LinksFunction = () => [
   },
 ];
 
-export async function loader({ context }: LoaderFunctionArgs & { context: any }) {
-  // Prefer Cloudflare Pages env (provided via `functions/[[path]].js`), fallback to process.env for local/dev
+type LoaderEnv = {
+  SUPABASE_URL?: string;
+  SUPABASE_ANON_KEY?: string;
+  VITE_SUPABASE_URL?: string;
+  VITE_SUPABASE_ANON_KEY?: string;
+};
+
+export async function loader({ context }: LoaderFunctionArgs<LoaderEnv>) {
+  // Prefer Worker env (injected via createRequestHandler), fall back to process.env for local/dev
+  const fallbackEnv = typeof process !== "undefined" ? process.env : undefined;
   const env = {
-    SUPABASE_URL: (context && context.SUPABASE_URL) || process.env.VITE_SUPABASE_URL!,
-    SUPABASE_ANON_KEY: (context && context.SUPABASE_ANON_KEY) || process.env.VITE_SUPABASE_ANON_KEY!,
+    SUPABASE_URL:
+      context?.SUPABASE_URL ||
+      context?.VITE_SUPABASE_URL ||
+      fallbackEnv?.VITE_SUPABASE_URL!,
+    SUPABASE_ANON_KEY:
+      context?.SUPABASE_ANON_KEY ||
+      context?.VITE_SUPABASE_ANON_KEY ||
+      fallbackEnv?.VITE_SUPABASE_ANON_KEY!,
   };
 
   return json({ env });
